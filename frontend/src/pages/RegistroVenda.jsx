@@ -12,9 +12,9 @@ const FORMAS_PAGAMENTO = [
 ];
 
 const TIPOS_CLIENTE = [
-  { value: 'agendado',    label: 'Agendado (Booksy)' },
+  { value: 'agendado',     label: 'Agendado (Booksy)' },
   { value: 'primeira_vez', label: 'Primeira vez' },
-  { value: 'esporadico',  label: 'Esporádico (passou na porta)' },
+  { value: 'esporadico',   label: 'Esporádico (passou na porta)' },
 ];
 
 function hojeISO() {
@@ -26,6 +26,8 @@ const FORM_INICIAL = {
   servico:         '',
   valor:           '',
   forma_pagamento: 'dinheiro',
+  produto:         '',
+  produto_valor:   '',
   desconto:        '',
   tipo_cliente:    'agendado',
   qtd_clientes:    1,
@@ -35,15 +37,16 @@ const FORM_INICIAL = {
 
 const UPSELL_INICIAL = { servico: '', valor: '', forma_pagamento: 'dinheiro' };
 
-// ─── Autocomplete de serviço ─────────────────────────────────────────────────
+// ─── Autocomplete (serviços e produtos) ─────────────────────────────────────
 
-function ServicoAutocomplete({ value, onChange, onSelect, catalogo, placeholder }) {
+function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder, required }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef(null);
 
-  const sugestoes = value.length >= 1
-    ? catalogo.filter(i => i.nome.toLowerCase().includes(value.toLowerCase())).slice(0, 10)
-    : [];
+  // Mostra todos ao abrir com campo vazio, filtra ao digitar
+  const sugestoes = catalogo
+    .filter(i => !value || i.nome.toLowerCase().includes(value.toLowerCase()))
+    .slice(0, 10);
 
   useEffect(() => {
     function fechar(e) {
@@ -55,15 +58,21 @@ function ServicoAutocomplete({ value, onChange, onSelect, catalogo, placeholder 
 
   return (
     <div ref={ref} className="relative">
-      <input
-        type="text"
-        value={value}
-        onChange={e => { onChange(e.target.value); setAberto(true); }}
-        onFocus={() => setAberto(true)}
-        required
-        placeholder={placeholder ?? 'Ex.: Corte'}
-        className="input-dark w-full"
-      />
+      <div className="relative">
+        <input
+          type="text"
+          value={value}
+          onChange={e => { onChange(e.target.value); setAberto(true); }}
+          onFocus={() => setAberto(true)}
+          required={required}
+          placeholder={placeholder ?? 'Digite ou selecione...'}
+          className="input-dark w-full pr-8"
+        />
+        <ChevronDown
+          size={14}
+          className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-gold-muted pointer-events-none transition-transform ${aberto ? 'rotate-180' : ''}`}
+        />
+      </div>
       {aberto && sugestoes.length > 0 && (
         <ul className="absolute z-50 w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl max-h-56 overflow-y-auto">
           {sugestoes.map(item => (
@@ -102,6 +111,9 @@ export default function RegistroVenda() {
   const [sucesso,   setSucesso]   = useState(null);
   const [erro,      setErro]      = useState(null);
 
+  const catalogoServicos = catalogo.filter(i => !i.controla_estoque);
+  const catalogoProdutos = catalogo.filter(i => i.controla_estoque);
+
   useEffect(() => {
     api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
     api.catalogo().then(d => setCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
@@ -109,16 +121,20 @@ export default function RegistroVenda() {
 
   function onChange(e) {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm(f => ({ ...f, [name]: value }));
   }
 
   function onChangeUpsell(e) {
     const { name, value } = e.target;
-    setUpsell((u) => ({ ...u, [name]: value }));
+    setUpsell(u => ({ ...u, [name]: value }));
   }
 
   function selecionarServico(nome, preco) {
     setForm(f => ({ ...f, servico: nome, valor: preco.toFixed(2) }));
+  }
+
+  function selecionarProduto(nome, preco) {
+    setForm(f => ({ ...f, produto: nome, produto_valor: preco.toFixed(2) }));
   }
 
   function selecionarUpsell(nome, preco) {
@@ -145,6 +161,17 @@ export default function RegistroVenda() {
 
       const vendaPrincipal = await api.criarVenda(payload);
 
+      if (form.produto.trim() && form.produto_valor) {
+        await api.criarVenda({
+          ...payload,
+          servico:         form.produto.trim(),
+          valor:           parseFloat(form.produto_valor),
+          desconto:        0,
+          upsell:          true,
+          venda_origem_id: vendaPrincipal.id,
+        });
+      }
+
       if (temUpsell && upsell.servico.trim() && upsell.valor) {
         await api.criarVenda({
           ...payload,
@@ -160,7 +187,7 @@ export default function RegistroVenda() {
       setSucesso(vendaPrincipal);
       setTemUpsell(false);
       setUpsell(UPSELL_INICIAL);
-      setForm((f) => ({ ...FORM_INICIAL, profissional_id: f.profissional_id, data: f.data }));
+      setForm(f => ({ ...FORM_INICIAL, profissional_id: f.profissional_id, data: f.data }));
     } catch (err) {
       setErro(err.message);
     } finally {
@@ -206,18 +233,20 @@ export default function RegistroVenda() {
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Barbeiro *</label>
           <select name="profissional_id" value={form.profissional_id} onChange={onChange} required className="input-dark w-full">
             <option value="">Selecione o barbeiro</option>
-            {barbeiros.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
+            {barbeiros.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
           </select>
         </div>
 
         {/* Serviço */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Serviço *</label>
-          <ServicoAutocomplete
+          <CatalogoAutocomplete
             value={form.servico}
-            onChange={(v) => setForm(f => ({ ...f, servico: v }))}
+            onChange={v => setForm(f => ({ ...f, servico: v }))}
             onSelect={selecionarServico}
-            catalogo={catalogo}
+            catalogo={catalogoServicos}
+            placeholder="Ex.: Corte"
+            required
           />
         </div>
 
@@ -233,10 +262,35 @@ export default function RegistroVenda() {
           <div>
             <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento *</label>
             <select name="forma_pagamento" value={form.forma_pagamento} onChange={onChange} className="input-dark w-full">
-              {FORMAS_PAGAMENTO.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+              {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
             </select>
           </div>
         </div>
+
+        {/* Produto */}
+        <div>
+          <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+            Produto <span className="normal-case text-gold-muted/50">(opcional)</span>
+          </label>
+          <CatalogoAutocomplete
+            value={form.produto}
+            onChange={v => setForm(f => ({ ...f, produto: v, ...(v === '' ? { produto_valor: '' } : {}) }))}
+            onSelect={selecionarProduto}
+            catalogo={catalogoProdutos}
+            placeholder="Ex.: Pomada Matt"
+          />
+        </div>
+
+        {/* Valor do produto — aparece ao selecionar */}
+        {form.produto.trim() && (
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor produto (R$)</label>
+            <input
+              type="number" name="produto_valor" value={form.produto_valor} onChange={onChange}
+              min="0" step="0.01" placeholder="0,00" className="input-dark w-full"
+            />
+          </div>
+        )}
 
         {/* Qtd Clientes */}
         <div>
@@ -253,7 +307,7 @@ export default function RegistroVenda() {
         <div className="border border-surface-border rounded-xl overflow-hidden">
           <button
             type="button"
-            onClick={() => setTemUpsell((v) => !v)}
+            onClick={() => setTemUpsell(v => !v)}
             className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] text-gold-muted uppercase tracking-wider hover:text-gold transition-colors"
           >
             <span>+ Serviço adicional (upsell)</span>
@@ -263,11 +317,11 @@ export default function RegistroVenda() {
             <div className="px-4 pb-4 pt-1 space-y-3 border-t border-surface-border">
               <div>
                 <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Serviço extra *</label>
-                <ServicoAutocomplete
+                <CatalogoAutocomplete
                   value={upsell.servico}
-                  onChange={(v) => setUpsell(u => ({ ...u, servico: v }))}
+                  onChange={v => setUpsell(u => ({ ...u, servico: v }))}
                   onSelect={selecionarUpsell}
-                  catalogo={catalogo}
+                  catalogo={catalogoServicos}
                   placeholder="Ex.: Sobrancelha"
                 />
               </div>
@@ -282,7 +336,7 @@ export default function RegistroVenda() {
                 <div>
                   <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento</label>
                   <select name="forma_pagamento" value={upsell.forma_pagamento} onChange={onChangeUpsell} className="input-dark w-full">
-                    {FORMAS_PAGAMENTO.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                    {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -294,11 +348,11 @@ export default function RegistroVenda() {
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Origem do cliente</label>
           <select name="tipo_cliente" value={form.tipo_cliente} onChange={onChange} className="input-dark w-full">
-            {TIPOS_CLIENTE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            {TIPOS_CLIENTE.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
 
-        {/* Desconto */}
+        {/* Desconto — fixo em R$ */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
             Desconto (R$) <span className="normal-case text-gold-muted/50">(opcional)</span>
@@ -322,7 +376,7 @@ export default function RegistroVenda() {
           </label>
           <input
             type="text" name="observacao" value={form.observacao} onChange={onChange}
-            placeholder="Produto, desconto…" className="input-dark w-full"
+            placeholder="Observações gerais…" className="input-dark w-full"
           />
         </div>
 
