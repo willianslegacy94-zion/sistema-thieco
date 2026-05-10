@@ -29,6 +29,8 @@ services:
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Executado automaticamente na primeira inicialização (volume vazio)
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
     # Porta exposta apenas para acesso local com DBeaver/psql durante desenvolvimento
     # Remova em produção real
