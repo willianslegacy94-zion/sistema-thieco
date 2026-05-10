@@ -1,0 +1,13 @@
+{
+  "name": "sistema-thieco",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --prefix-colors \"cyan,magenta\" --names \"backend,frontend\" \"yarn --cwd backend dev\" \"yarn --cwd frontend dev\"",
+    "backend": "yarn --cwd backend dev",
+    "frontend": "yarn --cwd frontend dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

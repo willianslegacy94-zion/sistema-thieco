@@ -1,0 +1,26 @@
+{
+  "name": "sistema-caixa-thieco",
+  "version": "1.0.0",
+  "description": "Sistema de Caixa - Barbearia Thieco Leandro",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "migrate": "node -e \"require('./models').runMigrations()\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "embedded-postgres": "^18.3.0-beta.17",
+    "express": "^4.18.3",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
+  }
+}

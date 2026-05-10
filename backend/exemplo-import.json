@@ -1,0 +1,45 @@
+{
+  "vendas": [
+    {
+      "data": "2024-03-15",
+      "unidade": "tambore",
+      "profissional": "Igor",
+      "servico": "Corte + Barba",
+      "valor": 65.00,
+      "forma_pagamento": "pix"
+    },
+    {
+      "data": "15/03/2024",
+      "unidade": "Mutinga",
+      "profissional": "Kauã",
+      "servico": "Corte Social",
+      "valor": 45.00,
+      "comissao": 18.00,
+      "forma_pagamento": "dinheiro"
+    },
+    {
+      "data": "2024-03-16",
+      "unidade": "tambore",
+      "profissional": "Thieco Leandro",
+      "servico": "Corte + Barba + Sobrancelha",
+      "valor": 80.00,
+      "forma_pagamento": "credito"
+    }
+  ],
+  "gastos": [
+    {
+      "data": "2024-03-01",
+      "unidade": "tambore",
+      "categoria": "aluguel",
+      "descricao": "Aluguel março/2024",
+      "valor": 3500.00
+    },
+    {
+      "data": "2024-03-05",
+      "unidade": "mutinga",
+      "categoria": "produtos",
+      "descricao": "Reposição de produtos — pomadas e shampoos",
+      "valor": 420.00
+    }
+  ]
+}

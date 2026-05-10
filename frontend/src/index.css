@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-onix text-gold-light font-sans;
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-onix-100; }
+  ::-webkit-scrollbar-thumb { @apply bg-gold-muted rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gold; }
+}
+
+@layer components {
+  /* ── Divider dourado ornamental ── */
+  .gold-divider {
+    @apply flex items-center gap-3 my-1;
+  }
+  .gold-divider::before,
+  .gold-divider::after {
+    content: '';
+    @apply flex-1 h-px bg-gold-dark opacity-50;
+  }
+
+  /* ── Texto dourado com shimmer ── */
+  .text-gold-shimmer {
+    background: linear-gradient(
+      90deg,
+      #C9A227 0%,
+      #F5D76E 30%,
+      #D4AF37 50%,
+      #F5D76E 70%,
+      #C9A227 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+
+  /* ── Card premium ── */
+  .card-premium {
+    @apply bg-surface-card rounded-xl border border-surface-border shadow-card
+           transition-all duration-300;
+  }
+  .card-premium:hover {
+    @apply border-gold-muted shadow-gold-sm;
+  }
+
+  /* ── Badge de unidade ── */
+  .badge-unidade {
+    @apply text-xs font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider
+           border border-gold-dark text-gold bg-gold/10;
+  }
+
+  /* ── Input escuro ── */
+  .input-dark {
+    @apply bg-surface-hover border border-surface-border rounded-lg px-3 py-2
+           text-gold-light text-sm placeholder-gold-muted/50
+           focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30
+           transition-colors duration-200;
+  }
+
+  /* ── Botão dourado ── */
+  .btn-gold {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm
+           bg-gold-gradient text-onix-300 shadow-gold-sm
+           hover:shadow-gold active:scale-95
+           transition-all duration-200 cursor-pointer;
+  }
+
+  /* ── Botão outline dourado ── */
+  .btn-outline-gold {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm
+           border border-gold text-gold
+           hover:bg-gold/10 active:scale-95
+           transition-all duration-200 cursor-pointer;
+  }
+
+  /* ── Linha da tabela ── */
+  .table-row-dark {
+    @apply border-b border-surface-border last:border-0
+           hover:bg-surface-hover transition-colors duration-150;
+  }
+}
