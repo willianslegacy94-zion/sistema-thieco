@@ -130,15 +130,15 @@ export default function RegistroVenda() {
   }
 
   function selecionarServico(nome, preco) {
-    setForm(f => ({ ...f, servico: nome, valor: preco.toFixed(2) }));
+    setForm(f => ({ ...f, servico: nome, valor: parseFloat(preco).toFixed(2) }));
   }
 
   function selecionarProduto(nome, preco) {
-    setForm(f => ({ ...f, produto: nome, produto_valor: preco.toFixed(2) }));
+    setForm(f => ({ ...f, produto: nome, produto_valor: parseFloat(preco).toFixed(2) }));
   }
 
   function selecionarUpsell(nome, preco) {
-    setUpsell(u => ({ ...u, servico: nome, valor: preco.toFixed(2) }));
+    setUpsell(u => ({ ...u, servico: nome, valor: parseFloat(preco).toFixed(2) }));
   }
 
   async function onSubmit(e) {
