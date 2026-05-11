@@ -10,6 +10,8 @@ const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
+  // Garante UTF-8 na comunicação cliente↔servidor, evitando garbling de acentos
+  options: '-c client_encoding=UTF8',
 });
 
 pool.on('error', (err) => {

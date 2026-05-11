@@ -357,6 +357,17 @@ const ALTER_USUARIOS_UNIDADE_ACESSO = `
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade_acesso VARCHAR(20);
 `;
 
+// Remove entradas do catálogo com double-encoding (UTF-8 gravado como Latin-1/cp1252).
+// Padrão: nomes contendo 'Ã' (U+00C3) que resultam de bytes UTF-8 mal interpretados.
+async function fixCatalogoEncoding() {
+  const { rows } = await query(`SELECT 1 FROM catalogo WHERE nome LIKE '%Ã%' LIMIT 1`);
+  if (rows.length === 0) return; // nenhuma entrada corrompida
+
+  console.log('  ⚠ Entradas com encoding corrompido detectadas — limpando...');
+  const { rowCount } = await query(`DELETE FROM catalogo WHERE nome LIKE '%Ã%'`);
+  console.log(`  ✓ ${rowCount} entradas corrompidas removidas.`);
+}
+
 // Senhas padrão — ALTERAR em produção via UPDATE usuarios SET senha_hash = ...
 async function seedUsuarios() {
   const bcrypt = require('bcryptjs');
@@ -411,6 +422,7 @@ async function runMigrations() {
     await query(CREATE_METAS_UNIDADE);
     await query(CREATE_CATALOGO);
     await query(SEED_CATALOGO);
+    await fixCatalogoEncoding();
     await seedUsuarios();
     console.log('Migrations concluídas com sucesso.');
   } catch (err) {
