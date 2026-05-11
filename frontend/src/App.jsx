@@ -27,7 +27,7 @@ function NavTab({ pagina, ativa, onClick, disabled }) {
       onClick={() => !disabled && onClick(pagina.id)}
       disabled={disabled}
       title={disabled ? 'Acesso restrito a administradores' : undefined}
-      className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-200
+      className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all duration-200
                   ${ativo
                     ? 'border-gold text-gold'
                     : disabled
@@ -87,7 +87,7 @@ function AppOperador() {
 
       <nav className="border-b border-surface-border bg-onix-200/60 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             {[
               { id: 'registro',  label: 'Registro',  icon: Scissors  },
               { id: 'relatorio', label: 'Relatório', icon: BarChart2 },
@@ -98,7 +98,7 @@ function AppOperador() {
                 <button
                   key={p.id}
                   onClick={() => setAba(p.id)}
-                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-200
+                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all duration-200
                     ${aba === p.id
                       ? 'border-gold text-gold'
                       : 'border-transparent text-gold-muted hover:text-gold-light hover:border-gold-dark/40'}`}

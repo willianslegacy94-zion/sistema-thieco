@@ -48,7 +48,7 @@ function DashboardBarbeiro({ dados, loading, erro, filtros, setFiltros, recarreg
       )}
 
       {/* Métricas pessoais */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
           titulo="Meu Faturamento"
           valor={toNum(my?.faturamento_bruto)}
