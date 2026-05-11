@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="5" fill="#0F0E0A"/>
+  <!-- Gold border -->
+  <rect x="1" y="1" width="30" height="30" rx="4" fill="none" stroke="#D4AF37" stroke-width="1"/>
+
+  <!-- Blade 1: lower-left ring → upper-right -->
+  <line x1="9" y1="23" x2="24" y2="8" stroke="#D4AF37" stroke-width="2" stroke-linecap="round"/>
+  <!-- Blade 2: lower-right ring → upper-left -->
+  <line x1="23" y1="23" x2="8" y2="8" stroke="#D4AF37" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Handle rings -->
+  <circle cx="9"  cy="24" r="3.5" fill="#0F0E0A" stroke="#D4AF37" stroke-width="1.5"/>
+  <circle cx="23" cy="24" r="3.5" fill="#0F0E0A" stroke="#D4AF37" stroke-width="1.5"/>
+
+  <!-- Pivot center -->
+  <circle cx="16" cy="15.5" r="1.5" fill="#D4AF37"/>
+</svg>
