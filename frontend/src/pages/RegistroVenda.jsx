@@ -40,14 +40,15 @@ const UPSELL_INICIAL = { servico: '', valor: '', forma_pagamento: 'dinheiro' };
 
 // ─── Autocomplete (serviços e produtos) ─────────────────────────────────────
 
-function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder, required }) {
+function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder, required, grupos }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef(null);
 
-  // Mostra todos ao abrir com campo vazio, filtra ao digitar
   const sugestoes = catalogo
-    .filter(i => !value || i.nome.toLowerCase().includes(value.toLowerCase()))
-    .slice(0, 10);
+    .filter(i => !value || i.nome.toLowerCase().includes(value.toLowerCase()));
+
+  const individuais = grupos ? sugestoes.filter(i => !i.nome.toLowerCase().startsWith('combo')) : [];
+  const combos      = grupos ? sugestoes.filter(i =>  i.nome.toLowerCase().startsWith('combo')) : [];
 
   useEffect(() => {
     function fechar(e) {
@@ -57,8 +58,23 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
     return () => document.removeEventListener('mousedown', fechar);
   }, []);
 
+  function ItemBtn({ item }) {
+    return (
+      <button
+        type="button"
+        onMouseDown={() => { onSelect(item.nome, item.preco_venda); setAberto(false); }}
+        className="w-full text-left px-3 py-2.5 text-sm hover:bg-onix-300/60 transition-colors flex justify-between items-center"
+      >
+        <span className="text-gold-light">{item.nome}</span>
+        <span className="text-gold text-xs font-semibold ml-2 shrink-0">
+          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_venda)}
+        </span>
+      </button>
+    );
+  }
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={`relative ${aberto ? 'z-[9999]' : ''}`}>
       <div className="relative">
         <input
           type="text"
@@ -76,24 +92,29 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
         />
       </div>
       {aberto && sugestoes.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl max-h-56 overflow-y-auto">
-          {sugestoes.map(item => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onMouseDown={() => {
-                  onSelect(item.nome, item.preco_venda);
-                  setAberto(false);
-                }}
-                className="w-full text-left px-3 py-2.5 text-sm hover:bg-onix-300/60 transition-colors flex justify-between items-center"
-              >
-                <span className="text-gold-light">{item.nome}</span>
-                <span className="text-gold text-xs font-semibold ml-2 shrink-0">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_venda)}
-                </span>
-              </button>
-            </li>
-          ))}
+        <ul className="absolute w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl max-h-72 overflow-y-auto">
+          {grupos ? (
+            <>
+              {individuais.length > 0 && (
+                <>
+                  <li className="px-3 pt-2 pb-1 text-[10px] text-gold-muted/60 uppercase tracking-widest font-semibold select-none">
+                    Serviços
+                  </li>
+                  {individuais.map(item => <li key={item.id}><ItemBtn item={item} /></li>)}
+                </>
+              )}
+              {combos.length > 0 && (
+                <>
+                  <li className={`px-3 pt-2 pb-1 text-[10px] text-gold-muted/60 uppercase tracking-widest font-semibold select-none ${individuais.length > 0 ? 'border-t border-surface-border mt-1' : ''}`}>
+                    Combos
+                  </li>
+                  {combos.map(item => <li key={item.id}><ItemBtn item={item} /></li>)}
+                </>
+              )}
+            </>
+          ) : (
+            sugestoes.map(item => <li key={item.id}><ItemBtn item={item} /></li>)
+          )}
         </ul>
       )}
     </div>
@@ -113,7 +134,14 @@ export default function RegistroVenda() {
   const [sucesso,   setSucesso]   = useState(null);
   const [erro,      setErro]      = useState(null);
 
-  const catalogoServicos = catalogo.filter(i => !i.controla_estoque);
+  const catalogoServicos = catalogo
+    .filter(i => !i.controla_estoque)
+    .sort((a, b) => {
+      const aCombo = a.nome.toLowerCase().startsWith('combo');
+      const bCombo = b.nome.toLowerCase().startsWith('combo');
+      if (aCombo !== bCombo) return aCombo ? 1 : -1;
+      return a.nome.localeCompare(b.nome, 'pt-BR');
+    });
   const catalogoProdutos = catalogo.filter(i => i.controla_estoque);
 
   useEffect(() => {
@@ -250,6 +278,7 @@ export default function RegistroVenda() {
             catalogo={catalogoServicos}
             placeholder="Ex.: Corte"
             required
+            grupos
           />
         </div>
 
@@ -346,6 +375,7 @@ export default function RegistroVenda() {
                   onSelect={selecionarUpsell}
                   catalogo={catalogoServicos}
                   placeholder="Ex.: Sobrancelha"
+                  grupos
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
