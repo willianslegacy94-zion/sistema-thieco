@@ -22,6 +22,23 @@ const periodoValidators = [
 
 function toNum(v) { return parseFloat(v ?? 0); }
 
+// ─── Taxas de intermediação PagBank (maquininha) ──────────────────────────────
+// Fonte: app PagBank → Maquininhas → Taxas personalizadas (capturado em mai/2026)
+const TAXAS_PAGBANK = {
+  debito:   0.0119,   // 1,19% — Débito Visa/Master/Elo, recebimento na hora
+  credito:  0.0349,   // 3,49% — Crédito à vista, recebimento na hora
+  pix:      0,        // PagBank Pix — isento
+  dinheiro: 0,
+  cortesia: 0,
+};
+
+// SQL CASE que calcula o valor da taxa por linha de venda
+const TAXA_SQL_CASE = `valor * CASE forma_pagamento
+  WHEN 'debito'  THEN 0.0119
+  WHEN 'credito' THEN 0.0349
+  ELSE 0
+END`;
+
 // ─── Fluxo de Caixa — admin ───────────────────────────────────────────────────
 router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async (req, res) => {
   const errors = validationResult(req);
@@ -60,12 +77,18 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
       WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
     `, [inicio, fim]);
 
+    const taxaQ = await query(`
+      SELECT COALESCE(ROUND(SUM(${TAXA_SQL_CASE}), 2), 0) AS taxa_pagbank
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+    `, [inicio, fim]);
+
     const receitaBruta    = toNum(totaisEntrada.rows[0].receita_bruta);
     const totalComissoes  = toNum(totaisEntrada.rows[0].total_comissoes);
     const totalDescontos  = toNum(totaisEntrada.rows[0].total_descontos);
     const totalGastos     = toNum(totaisSaida.rows[0].total_gastos);
+    const taxaPagBank     = toNum(taxaQ.rows[0].taxa_pagbank);
     const receitaLiquida  = receitaBruta - totalComissoes;
-    const saldoPeriodo    = receitaLiquida - totalGastos;
+    const saldoPeriodo    = receitaLiquida - taxaPagBank - totalGastos;
     const pctDesconto     = (receitaBruta + totalDescontos) > 0
       ? parseFloat(((totalDescontos / (receitaBruta + totalDescontos)) * 100).toFixed(2))
       : 0;
@@ -73,9 +96,14 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
     res.json({
       periodo: { inicio, fim, unidade: unidade ?? 'todas' },
       totais: {
-        receita_bruta: receitaBruta, total_comissoes: totalComissoes,
-        receita_liquida: receitaLiquida, total_gastos: totalGastos, saldo_periodo: saldoPeriodo,
-        total_descontos: totalDescontos, pct_desconto: pctDesconto,
+        receita_bruta:   receitaBruta,
+        total_comissoes: totalComissoes,
+        receita_liquida: receitaLiquida,
+        taxa_pagbank:    taxaPagBank,
+        total_gastos:    totalGastos,
+        saldo_periodo:   saldoPeriodo,
+        total_descontos: totalDescontos,
+        pct_desconto:    pctDesconto,
       },
       entradas_por_dia: entradasQ.rows,
       saidas_por_dia:   saidasQ.rows,
@@ -130,10 +158,22 @@ router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, re
       WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
     `, [inicio, fim]);
 
+    // Taxa de intermediação PagBank por forma de pagamento
+    const taxaDetalheQ = await query(`
+      SELECT forma_pagamento,
+        COUNT(*)::int                                            AS qtd,
+        ROUND(SUM(valor), 2)                                    AS volume,
+        ROUND(SUM(${TAXA_SQL_CASE}), 2)                         AS taxa,
+        ROUND(SUM(${TAXA_SQL_CASE}) / NULLIF(SUM(valor),0)*100, 2) AS taxa_pct_efetiva
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      GROUP BY forma_pagamento ORDER BY volume DESC
+    `, [inicio, fim]);
+
     const receitaBruta         = toNum(totaisV.rows[0].receita_bruta);
     const totalComissoes       = toNum(totaisV.rows[0].comissoes);
-    const receitaLiquida       = receitaBruta - totalComissoes;
     const gastosTotais         = toNum(totaisG.rows[0].gastos_totais);
+    const taxaPagBank          = taxaDetalheQ.rows.reduce((s, r) => s + toNum(r.taxa), 0);
+    const receitaLiquida       = receitaBruta - totalComissoes - taxaPagBank;
     const resultadoOperacional = receitaLiquida - gastosTotais;
     const margemBruta          = receitaBruta > 0
       ? parseFloat(((resultadoOperacional / receitaBruta) * 100).toFixed(2))
@@ -144,16 +184,18 @@ router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, re
       dre: {
         '1_receita_bruta':         receitaBruta,
         '2_deducoes_comissoes':    -totalComissoes,
-        '3_receita_liquida':       receitaLiquida,
-        '4_gastos_operacionais':   -gastosTotais,
-        '5_resultado_operacional': resultadoOperacional,
-        '6_margem_bruta_pct':      margemBruta,
+        '3_taxa_pagbank':          -parseFloat(taxaPagBank.toFixed(2)),
+        '4_receita_liquida':       receitaLiquida,
+        '5_gastos_operacionais':   -gastosTotais,
+        '6_resultado_operacional': resultadoOperacional,
+        '7_margem_bruta_pct':      margemBruta,
       },
       detalhes: {
         receitas_por_servico:         receitasPorServico.rows,
         receitas_por_forma_pagamento: receitasPorPagamento.rows,
         gastos_por_categoria:         gastosPorCategoria.rows,
         comissoes_por_profissional:   comissoesPorProfissional.rows,
+        taxas_pagbank_por_pagamento:  taxaDetalheQ.rows,
       },
     });
   } catch (err) {

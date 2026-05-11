@@ -100,7 +100,8 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar 
   const receitaBruta   = toNum(fluxo.receita_bruta);
   const totalComissoes = toNum(fluxo.total_comissoes);
   const totalGastos    = toNum(fluxo.total_gastos);
-  const lucroLiquido   = toNum(fluxo.saldo_periodo);
+  const taxaPagBank    = toNum(fluxo.taxa_pagbank);
+  const lucroLiquido   = toNum(fluxo.saldo_periodo);   // já deduz taxa PagBank
   const totalDescontos = toNum(fluxo.total_descontos);
   const pctDesconto    = toNum(fluxo.pct_desconto);
   const margem         = receitaBruta > 0
@@ -126,19 +127,36 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar 
         <MetricCard titulo="Lucro Líquido"          valor={lucroLiquido}   icon={lucroLiquido >= 0 ? TrendingUp : TrendingDown} variante={lucroLiquido >= 0 ? 'sucesso' : 'perigo'} loading={loading} sub={`Margem: ${margem}%`} />
       </section>
 
-      {/* Card de descontos */}
-      {(totalDescontos > 0 || !loading) && (
-        <section className="mb-6">
-          <div className="card-premium p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] text-gold-muted uppercase tracking-wider">Descontos concedidos</p>
-              <p className="text-lg font-bold text-amber-400 mt-0.5">{fmt(totalDescontos)}</p>
+      {/* Cards de descontos + taxa PagBank */}
+      {(totalDescontos > 0 || taxaPagBank > 0 || !loading) && (
+        <section className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {(totalDescontos > 0 || !loading) && (
+            <div className="card-premium p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] text-gold-muted uppercase tracking-wider">Descontos concedidos</p>
+                <p className="text-lg font-bold text-amber-400 mt-0.5">{fmt(totalDescontos)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-gold-muted uppercase tracking-wider">% receita bruta</p>
+                <p className="text-2xl font-bold text-amber-400">{pctDesconto.toFixed(1)}%</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-[11px] text-gold-muted uppercase tracking-wider">% sobre receita bruta</p>
-              <p className="text-2xl font-bold text-amber-400">{pctDesconto.toFixed(1)}%</p>
+          )}
+          {(taxaPagBank > 0 || !loading) && (
+            <div className="card-premium p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] text-gold-muted uppercase tracking-wider">Taxa PagBank (maquinha)</p>
+                <p className="text-lg font-bold text-orange-400 mt-0.5">{fmt(taxaPagBank)}</p>
+                <p className="text-[10px] text-gold-muted/60 mt-0.5">Déb 1,19% · Créd 3,49% · Pix 0%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-gold-muted uppercase tracking-wider">% receita bruta</p>
+                <p className="text-2xl font-bold text-orange-400">
+                  {receitaBruta > 0 ? ((taxaPagBank / receitaBruta) * 100).toFixed(1) : '0,0'}%
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </section>
       )}
 
@@ -165,11 +183,12 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar 
             <table className="w-full text-sm">
               <tbody>
                 {[
-                  { label: '(+) Receita Bruta',          valor: receitaBruta,                classe: 'text-gold font-semibold' },
-                  { label: '(-) Comissões dos Barbeiros', valor: -totalComissoes,             classe: 'text-amber-400' },
-                  { label: '(=) Receita Líquida',         valor: receitaBruta-totalComissoes, classe: 'text-gold-light border-t border-surface-border' },
-                  { label: '(-) Gastos Operacionais',     valor: -totalGastos,                classe: 'text-red-400' },
-                  { label: '(=) Resultado Operacional',   valor: lucroLiquido,                classe: `font-bold font-serif text-base border-t-2 border-gold/30 pt-2 ${lucroLiquido >= 0 ? 'text-emerald-400' : 'text-red-400'}` },
+                  { label: '(+) Receita Bruta',               valor: receitaBruta,                             classe: 'text-gold font-semibold' },
+                  { label: '(-) Comissões dos Barbeiros',      valor: -totalComissoes,                          classe: 'text-amber-400' },
+                  { label: '(-) Taxa PagBank (maquinha)',       valor: -taxaPagBank,                             classe: 'text-orange-400' },
+                  { label: '(=) Receita Líquida',              valor: receitaBruta-totalComissoes-taxaPagBank,  classe: 'text-gold-light border-t border-surface-border' },
+                  { label: '(-) Gastos Operacionais',          valor: -totalGastos,                             classe: 'text-red-400' },
+                  { label: '(=) Resultado Operacional',        valor: lucroLiquido,                             classe: `font-bold font-serif text-base border-t-2 border-gold/30 pt-2 ${lucroLiquido >= 0 ? 'text-emerald-400' : 'text-red-400'}` },
                 ].map((row) => (
                   <tr key={row.label} className="table-row-dark">
                     <td className={`py-3 px-2 text-gold-light/70 ${row.classe}`}>{row.label}</td>
