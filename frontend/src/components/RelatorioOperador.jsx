@@ -43,23 +43,23 @@ export default function RelatorioOperador() {
       </div>
 
       {/* Filtro de período */}
-      <div className="card-premium p-4 mb-6 flex flex-wrap items-center gap-3">
+      <div className="card-premium p-4 mb-6 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <input
             type="date" value={filtros.inicio}
             onChange={(e) => setFiltros((f) => ({ ...f, inicio: e.target.value }))}
-            className="input-dark text-xs px-2 py-1"
+            className="input-dark text-xs px-2 py-1 flex-1 sm:flex-initial"
           />
           <span className="text-gold-muted text-xs">até</span>
           <input
             type="date" value={filtros.fim}
             onChange={(e) => setFiltros((f) => ({ ...f, fim: e.target.value }))}
-            className="input-dark text-xs px-2 py-1"
+            className="input-dark text-xs px-2 py-1 flex-1 sm:flex-initial"
           />
         </div>
         <button
           onClick={carregar} disabled={loading}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gold-muted hover:text-gold border border-surface-border rounded-lg transition-colors"
+          className="sm:ml-auto flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gold-muted hover:text-gold border border-surface-border rounded-lg transition-colors w-full sm:w-auto"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           Atualizar
@@ -75,7 +75,7 @@ export default function RelatorioOperador() {
       {dados && !loading && (
         <div className="space-y-6">
           {/* Cards hoje / mês */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="card-premium p-5 text-center">
               <p className="text-[11px] text-gold-muted uppercase tracking-wider mb-2">Vendas hoje</p>
               <p className="text-2xl font-bold text-gold">{fmt(dados.hoje.total)}</p>

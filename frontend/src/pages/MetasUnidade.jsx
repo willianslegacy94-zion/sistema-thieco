@@ -137,7 +137,7 @@ export default function MetasUnidade() {
 
       {/* Filtros (admin vê filtro de unidade/mês; operador vê só mês) */}
       <div className="card-premium border border-surface-border p-4 mb-5">
-        <div className={`grid gap-3 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <div className={`grid gap-3 ${isAdmin ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
           {isAdmin && (
             <div>
               <label className="block text-xs text-gold-muted uppercase tracking-wider mb-1.5">Unidade</label>

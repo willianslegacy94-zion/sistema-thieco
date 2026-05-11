@@ -168,7 +168,7 @@ export default function Combos() {
             <input type="text" name="servicos" value={form.servicos} onChange={onChange} required className="input-dark w-full" placeholder="Ex.: 4 cortes + 2 barbas" />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor (R$) *</label>
               <input type="number" name="valor" value={form.valor} onChange={onChange} required min="0" step="0.01" placeholder="0,00" className="input-dark w-full" />

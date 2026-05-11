@@ -188,12 +188,12 @@ export default function RegistroGasto() {
 
       {/* Lista de despesas do mês */}
       <div className="card-premium p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <h2 className="text-sm font-semibold text-gold-light">Despesas do período</h2>
           <div className="flex items-center gap-2">
-            <input type="date" value={filtro.inicio} onChange={(e) => setFiltro((f) => ({ ...f, inicio: e.target.value }))} className="input-dark text-xs px-2 py-1" />
+            <input type="date" value={filtro.inicio} onChange={(e) => setFiltro((f) => ({ ...f, inicio: e.target.value }))} className="input-dark text-xs px-2 py-1 flex-1 sm:flex-initial" />
             <span className="text-gold-muted text-xs">até</span>
-            <input type="date" value={filtro.fim} onChange={(e) => setFiltro((f) => ({ ...f, fim: e.target.value }))} className="input-dark text-xs px-2 py-1" />
+            <input type="date" value={filtro.fim} onChange={(e) => setFiltro((f) => ({ ...f, fim: e.target.value }))} className="input-dark text-xs px-2 py-1 flex-1 sm:flex-initial" />
           </div>
         </div>
 

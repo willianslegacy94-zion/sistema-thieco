@@ -99,7 +99,7 @@ export default function GestaoTime() {
           <div className="card-premium p-5">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold uppercase tracking-widest text-gold-muted">Planos Ativos</h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {profissionais.map((p) => (
                   <button key={p.id} onClick={() => carregarPdca({ profissional_id: p.id })} className="btn-outline-gold text-xs px-2 py-1">
                     {p.nome.split(' ')[0]}
@@ -126,7 +126,7 @@ export default function GestaoTime() {
           <div className="card-premium p-5">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold uppercase tracking-widest text-gold-muted">Sugestões Registradas</h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {['geral', 'tambore', 'mutinga'].map((u) => (
                   <button key={u} onClick={() => carregarSugestoes(u === 'geral' ? {} : { unidade: u })} className="btn-outline-gold text-xs px-2 py-1 capitalize">
                     {u === 'geral' ? 'Todas' : u === 'tambore' ? 'Tamboré' : 'Mutinga'}

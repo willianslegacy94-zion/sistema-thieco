@@ -139,7 +139,7 @@ export default function Clientes() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Tipo</label>
               <select name="tipo" value={form.tipo} onChange={onChange} className="input-dark w-full">

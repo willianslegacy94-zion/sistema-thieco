@@ -106,7 +106,7 @@ export default function GestaoMetas() {
 
       {/* Filtros */}
       <div className="card-premium border border-surface-border p-4 mb-5">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-gold-muted uppercase tracking-wider mb-1.5">Unidade</label>
             <select
