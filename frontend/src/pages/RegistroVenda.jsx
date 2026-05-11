@@ -22,17 +22,18 @@ function hojeISO() {
 }
 
 const FORM_INICIAL = {
-  profissional_id: '',
-  servico:         '',
-  valor:           '',
-  forma_pagamento: 'dinheiro',
-  produto:         '',
-  produto_valor:   '',
-  desconto:        '',
-  tipo_cliente:    'agendado',
-  qtd_clientes:    1,
-  data:            hojeISO(),
-  observacao:      '',
+  profissional_id:         '',
+  servico:                 '',
+  valor:                   '',
+  forma_pagamento:         'dinheiro',
+  produto:                 '',
+  produto_valor:           '',
+  produto_forma_pagamento: 'dinheiro',
+  desconto:                '',
+  tipo_cliente:            'agendado',
+  qtd_clientes:            1,
+  data:                    hojeISO(),
+  observacao:              '',
 };
 
 const UPSELL_INICIAL = { servico: '', valor: '', forma_pagamento: 'dinheiro' };
@@ -70,7 +71,8 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
         />
         <ChevronDown
           size={14}
-          className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-gold-muted pointer-events-none transition-transform ${aberto ? 'rotate-180' : ''}`}
+          onClick={() => setAberto(v => !v)}
+          className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-gold-muted cursor-pointer transition-transform ${aberto ? 'rotate-180' : ''}`}
         />
       </div>
       {aberto && sugestoes.length > 0 && (
@@ -166,6 +168,7 @@ export default function RegistroVenda() {
           ...payload,
           servico:         form.produto.trim(),
           valor:           parseFloat(form.produto_valor),
+          forma_pagamento: form.produto_forma_pagamento,
           desconto:        0,
           upsell:          true,
           venda_origem_id: vendaPrincipal.id,
@@ -281,26 +284,46 @@ export default function RegistroVenda() {
           />
         </div>
 
-        {/* Valor do produto — aparece ao selecionar */}
+        {/* Valor e pagamento do produto — aparece ao selecionar */}
         {form.produto.trim() && (
-          <div>
-            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor produto (R$)</label>
-            <input
-              type="number" name="produto_valor" value={form.produto_valor} onChange={onChange}
-              min="0" step="0.01" placeholder="0,00" className="input-dark w-full"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor produto (R$)</label>
+              <input
+                type="number" name="produto_valor" value={form.produto_valor} onChange={onChange}
+                min="0" step="0.01" placeholder="0,00" className="input-dark w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento produto</label>
+              <select name="produto_forma_pagamento" value={form.produto_forma_pagamento} onChange={onChange} className="input-dark w-full">
+                {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+            </div>
           </div>
         )}
 
-        {/* Qtd Clientes */}
-        <div>
-          <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
-            Qtd. de Clientes <span className="normal-case text-gold-muted/50">(ex: pai e filho)</span>
-          </label>
-          <input
-            type="number" name="qtd_clientes" value={form.qtd_clientes} onChange={onChange}
-            min="1" step="1" className="input-dark w-24"
-          />
+        {/* Qtd Clientes + Total */}
+        <div className="space-y-2">
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Qtd. de Clientes <span className="normal-case text-gold-muted/50">(ex: pai e filho)</span>
+            </label>
+            <input
+              type="number" name="qtd_clientes" value={form.qtd_clientes} onChange={onChange}
+              min="1" step="1" className="input-dark w-24"
+            />
+          </div>
+          {form.valor && (
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-gold/10 border border-gold-dark/30">
+              <span className="text-[11px] text-gold-muted uppercase tracking-wider">Total a pagar</span>
+              <span className="text-gold font-bold text-base">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                  Math.max(0, (parseFloat(form.valor) || 0) * (parseInt(form.qtd_clientes) || 1) - (parseFloat(form.desconto) || 0))
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Serviço adicional (Upsell) */}
