@@ -85,10 +85,9 @@ const ADD_UNIQUE_PROF_NOME = `
 const SEED_PROFISSIONAIS = `
   INSERT INTO profissionais (nome, unidade, percentual_comissao)
   VALUES
-    ('Thieco Leandro',   'tambore', 50.00),
-    ('Igor Hidalgo',     'mutinga', 40.00),
-    ('Kauã dos Santos',  'mutinga', 40.00),
-    ('Marcos Fernandes', 'mutinga', 40.00)
+    ('Thieco Leandro',  'tambore', 50.00),
+    ('Igor Hidalgo',    'mutinga', 40.00),
+    ('Kauã dos Santos', 'mutinga', 40.00)
   ON CONFLICT (nome) DO NOTHING;
 `;
 
