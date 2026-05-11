@@ -356,6 +356,27 @@ const ALTER_USUARIOS_UNIDADE_ACESSO = `
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade_acesso VARCHAR(20);
 `;
 
+// ─── Tabela de configurações do sistema ─────────────────────────────────────
+
+const CREATE_CONFIGURACOES = `
+  CREATE TABLE IF NOT EXISTS configuracoes (
+    chave       VARCHAR(80) PRIMARY KEY,
+    valor       TEXT NOT NULL,
+    descricao   TEXT,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+`;
+
+const SEED_CONFIGURACOES = `
+  INSERT INTO configuracoes (chave, valor, descricao) VALUES
+    ('taxa_debito',   '0.0119', 'Taxa PagBank débito Visa/Master/Elo — 1,19% — recebimento na hora'),
+    ('taxa_credito',  '0.0349', 'Taxa PagBank crédito à vista — 3,49% — recebimento na hora'),
+    ('taxa_pix',      '0',      'Taxa PagBank Pix — isento'),
+    ('taxa_dinheiro', '0',      'Dinheiro — sem taxa de intermediação'),
+    ('taxa_cortesia', '0',      'Cortesia — sem taxa de intermediação')
+  ON CONFLICT (chave) DO NOTHING;
+`;
+
 // Remove entradas do catálogo com double-encoding (UTF-8 gravado como Latin-1/cp1252).
 // Padrão: nomes contendo 'Ã' (U+00C3) que resultam de bytes UTF-8 mal interpretados.
 async function fixCatalogoEncoding() {
@@ -422,6 +443,8 @@ async function runMigrations() {
     await query(CREATE_CATALOGO);
     await query(SEED_CATALOGO);
     await fixCatalogoEncoding();
+    await query(CREATE_CONFIGURACOES);
+    await query(SEED_CONFIGURACOES);
     await seedUsuarios();
     console.log('Migrations concluídas com sucesso.');
   } catch (err) {
