@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Package, Plus, Pencil, Check, X, AlertTriangle, ChevronDown, ChevronUp, Minus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, Plus, Pencil, Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { api } from '../lib/api';
 
 const CATEGORIAS = [
@@ -13,6 +13,11 @@ const CATEGORIAS = [
   { value: 'outro',          label: 'Outros'      },
 ];
 
+const UNIDADES_SERVICO = [
+  { value: 'mutinga', label: 'Mutinga'  },
+  { value: 'tambore', label: 'Tamboré'  },
+];
+
 const CAT_LABEL = Object.fromEntries(CATEGORIAS.slice(1).map(c => [c.value, c.label]));
 const CAT_COR = {
   servico:         'bg-blue-900/40 text-blue-300',
@@ -24,33 +29,44 @@ const CAT_COR = {
   outro:           'bg-slate-700/60 text-slate-300',
 };
 
+const UNIDADE_BADGE = {
+  tambore: 'bg-orange-900/30 text-orange-300 border border-orange-700/30',
+  mutinga: 'bg-indigo-900/30 text-indigo-300 border border-indigo-700/30',
+};
+
 const BRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
+
+const isServico = (cat) => cat === 'servico' || cat === 'combo';
 
 const FORM_VAZIO = {
   nome: '', categoria: 'servico', preco_venda: '', preco_custo: '',
   quantidade: 0, quantidade_minima: 0, unidade_medida: 'un', controla_estoque: false,
+  unidade: 'mutinga',
 };
 
+// ─── Linha editável ──────────────────────────────────────────────────────────
+
 function LinhaItem({ item, onSave, onAjustarQtd }) {
-  const [editando, setEditando] = useState(false);
-  const [form, setForm] = useState({ ...item });
+  const [editando,  setEditando]  = useState(false);
+  const [form,      setForm]      = useState({ ...item, unidade: item.unidade ?? 'mutinga' });
   const [ajustando, setAjustando] = useState(false);
-  const [delta, setDelta] = useState('');
-  const [salvando, setSalvando] = useState(false);
+  const [delta,     setDelta]     = useState('');
+  const [salvando,  setSalvando]  = useState(false);
 
   const baixoEstoque = item.controla_estoque && item.quantidade <= item.quantidade_minima && item.quantidade_minima > 0;
 
   async function salvar() {
     setSalvando(true);
     await onSave(item.id, {
-      nome: form.nome,
-      categoria: form.categoria,
-      preco_venda: parseFloat(form.preco_venda) || 0,
-      preco_custo: form.preco_custo ? parseFloat(form.preco_custo) : null,
-      quantidade_minima: parseInt(form.quantidade_minima) || 0,
-      unidade_medida: form.unidade_medida,
+      nome:             form.nome,
+      categoria:        form.categoria,
+      preco_venda:      parseFloat(form.preco_venda) || 0,
+      preco_custo:      form.preco_custo ? parseFloat(form.preco_custo) : null,
+      quantidade_minima:parseInt(form.quantidade_minima) || 0,
+      unidade_medida:   form.unidade_medida,
       controla_estoque: form.controla_estoque,
-      ativo: form.ativo,
+      ativo:            form.ativo,
+      unidade:          isServico(form.categoria) ? form.unidade : null,
     });
     setSalvando(false);
     setEditando(false);
@@ -72,10 +88,21 @@ function LinhaItem({ item, onSave, onAjustarQtd }) {
             className="input-dark w-full text-sm" />
         </td>
         <td className="px-3 py-2">
-          <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-            className="input-dark text-sm">
-            {CATEGORIAS.slice(1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
+          <div className="flex flex-col gap-1.5">
+            <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+              className="input-dark text-sm">
+              {CATEGORIAS.slice(1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            {isServico(form.categoria) && (
+              <select
+                value={form.unidade ?? 'mutinga'}
+                onChange={e => setForm(f => ({ ...f, unidade: e.target.value }))}
+                className="input-dark text-xs"
+              >
+                {UNIDADES_SERVICO.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+              </select>
+            )}
+          </div>
         </td>
         <td className="px-3 py-2">
           <input type="number" value={form.preco_venda} onChange={e => setForm(f => ({ ...f, preco_venda: e.target.value }))}
@@ -104,7 +131,7 @@ function LinhaItem({ item, onSave, onAjustarQtd }) {
               className="p-1.5 rounded-lg bg-emerald-700/30 text-emerald-400 hover:bg-emerald-700/50 transition-colors">
               <Check size={13} />
             </button>
-            <button onClick={() => { setEditando(false); setForm({ ...item }); }}
+            <button onClick={() => { setEditando(false); setForm({ ...item, unidade: item.unidade ?? 'mutinga' }); }}
               className="p-1.5 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors">
               <X size={13} />
             </button>
@@ -123,9 +150,16 @@ function LinhaItem({ item, onSave, onAjustarQtd }) {
         </div>
       </td>
       <td className="px-3 py-2.5">
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${CAT_COR[item.categoria] ?? CAT_COR.outro}`}>
-          {CAT_LABEL[item.categoria] ?? item.categoria}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit ${CAT_COR[item.categoria] ?? CAT_COR.outro}`}>
+            {CAT_LABEL[item.categoria] ?? item.categoria}
+          </span>
+          {item.unidade && (
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded w-fit ${UNIDADE_BADGE[item.unidade] ?? ''}`}>
+              {item.unidade === 'tambore' ? 'Tamboré' : 'Mutinga'}
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2.5 text-sm font-semibold text-gold">{BRL(item.preco_venda)}</td>
       <td className="px-3 py-2.5 text-sm text-slate-400">{item.preco_custo ? BRL(item.preco_custo) : '—'}</td>
@@ -167,8 +201,10 @@ function LinhaItem({ item, onSave, onAjustarQtd }) {
   );
 }
 
+// ─── Formulário de novo item ─────────────────────────────────────────────────
+
 function FormNovoItem({ onCriar, onCancelar }) {
-  const [form, setForm] = useState(FORM_VAZIO);
+  const [form,     setForm]     = useState(FORM_VAZIO);
   const [salvando, setSalvando] = useState(false);
 
   async function salvar(e) {
@@ -176,10 +212,11 @@ function FormNovoItem({ onCriar, onCancelar }) {
     setSalvando(true);
     await onCriar({
       ...form,
-      preco_venda: parseFloat(form.preco_venda) || 0,
-      preco_custo: form.preco_custo ? parseFloat(form.preco_custo) : null,
-      quantidade: parseInt(form.quantidade) || 0,
-      quantidade_minima: parseInt(form.quantidade_minima) || 0,
+      preco_venda:      parseFloat(form.preco_venda) || 0,
+      preco_custo:      form.preco_custo ? parseFloat(form.preco_custo) : null,
+      quantidade:       parseInt(form.quantidade) || 0,
+      quantidade_minima:parseInt(form.quantidade_minima) || 0,
+      unidade:          isServico(form.categoria) ? form.unidade : null,
     });
     setSalvando(false);
   }
@@ -191,10 +228,21 @@ function FormNovoItem({ onCriar, onCancelar }) {
           required placeholder="Nome do item" className="input-dark w-full text-sm" />
       </td>
       <td className="px-3 py-2">
-        <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-          className="input-dark text-sm">
-          {CATEGORIAS.slice(1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </select>
+        <div className="flex flex-col gap-1.5">
+          <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+            className="input-dark text-sm">
+            {CATEGORIAS.slice(1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+          {isServico(form.categoria) && (
+            <select
+              value={form.unidade}
+              onChange={e => setForm(f => ({ ...f, unidade: e.target.value }))}
+              className="input-dark text-xs"
+            >
+              {UNIDADES_SERVICO.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2">
         <input type="number" value={form.preco_venda} onChange={e => setForm(f => ({ ...f, preco_venda: e.target.value }))}
@@ -239,13 +287,15 @@ function FormNovoItem({ onCriar, onCancelar }) {
   );
 }
 
+// ─── Página principal ────────────────────────────────────────────────────────
+
 export default function Estoque() {
-  const [itens, setItens] = useState([]);
-  const [catFiltro, setCatFiltro] = useState('');
-  const [busca, setBusca] = useState('');
-  const [mostrarInativos, setMostrarInativos] = useState(false);
-  const [adicionando, setAdicionando] = useState(false);
-  const [erro, setErro] = useState(null);
+  const [itens,          setItens]          = useState([]);
+  const [catFiltro,      setCatFiltro]      = useState('');
+  const [unidadeFiltro,  setUnidadeFiltro]  = useState('');
+  const [busca,          setBusca]          = useState('');
+  const [adicionando,    setAdicionando]    = useState(false);
+  const [erro,           setErro]           = useState(null);
 
   async function carregar() {
     try {
@@ -261,6 +311,7 @@ export default function Estoque() {
   const itensFiltrados = itens.filter(item => {
     if (catFiltro && item.categoria !== catFiltro) return false;
     if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false;
+    if (unidadeFiltro && isServico(item.categoria) && item.unidade !== unidadeFiltro) return false;
     return true;
   });
 
@@ -331,11 +382,12 @@ export default function Estoque() {
       )}
 
       {/* Filtros */}
-      <div className="card-premium p-4 mb-4">
-        <div className="flex flex-wrap gap-2 mb-3">
+      <div className="card-premium p-4 mb-4 space-y-3">
+        {/* Filtro por categoria */}
+        <div className="flex flex-wrap gap-2">
           {CATEGORIAS.map(c => (
             <button key={c.value}
-              onClick={() => setCatFiltro(c.value)}
+              onClick={() => { setCatFiltro(c.value); setUnidadeFiltro(''); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 catFiltro === c.value
                   ? 'bg-gold text-onix'
@@ -345,6 +397,29 @@ export default function Estoque() {
             </button>
           ))}
         </div>
+
+        {/* Filtro por unidade — só aparece quando filtro de categoria é serviço/combo/todos */}
+        {(catFiltro === '' || catFiltro === 'servico' || catFiltro === 'combo') && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-gold-muted uppercase tracking-wider">Unidade:</span>
+            {[
+              { value: '', label: 'Todas' },
+              { value: 'mutinga', label: 'Mutinga' },
+              { value: 'tambore', label: 'Tamboré' },
+            ].map(u => (
+              <button key={u.value}
+                onClick={() => setUnidadeFiltro(u.value)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                  unidadeFiltro === u.value
+                    ? 'bg-gold/20 text-gold border border-gold-dark/40'
+                    : 'bg-onix-300/40 text-gold-muted hover:text-gold border border-transparent'
+                }`}>
+                {u.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <input
           type="text" value={busca} onChange={e => setBusca(e.target.value)}
           placeholder="Buscar por nome…"
@@ -358,7 +433,7 @@ export default function Estoque() {
           <thead>
             <tr className="border-b border-surface-border">
               <th className="px-3 py-3 text-[10px] text-gold-muted uppercase tracking-wider">Nome</th>
-              <th className="px-3 py-3 text-[10px] text-gold-muted uppercase tracking-wider">Categoria</th>
+              <th className="px-3 py-3 text-[10px] text-gold-muted uppercase tracking-wider">Categoria / Unidade</th>
               <th className="px-3 py-3 text-[10px] text-gold-muted uppercase tracking-wider">Preço Venda</th>
               <th className="px-3 py-3 text-[10px] text-gold-muted uppercase tracking-wider">Preço Custo</th>
               <th className="px-3 py-3 text-[10px] text-gold-muted uppercase tracking-wider text-center">Estoque / Mínimo</th>

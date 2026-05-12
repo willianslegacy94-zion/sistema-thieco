@@ -15,6 +15,7 @@ async function http(path, opts = {}) {
   };
 
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  if (res.status === 204) return null;
   const data = await res.json();
   if (!res.ok) throw new Error(data.erro ?? `HTTP ${res.status}`);
   return data;
@@ -47,8 +48,16 @@ export const api = {
     http(`/gastos?${new URLSearchParams(params)}`),
   criarVenda: (body) =>
     http('/vendas', { method: 'POST', body: JSON.stringify(body) }),
+  atualizarVenda: (id, body) =>
+    http(`/vendas/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deletarVenda: (id) =>
+    http(`/vendas/${id}`, { method: 'DELETE' }),
   criarGasto: (body) =>
     http('/gastos', { method: 'POST', body: JSON.stringify(body) }),
+  atualizarGasto: (id, body) =>
+    http(`/gastos/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deletarGasto: (id) =>
+    http(`/gastos/${id}`, { method: 'DELETE' }),
 
   resumoOperador: (params) =>
     http(`/relatorios/resumo-operador?${new URLSearchParams(params)}`),

@@ -240,72 +240,107 @@ const CREATE_CATALOGO = `
   );
 `;
 
+const ALTER_CATALOGO_DROP_CONSTRAINT = `
+  ALTER TABLE catalogo DROP CONSTRAINT IF EXISTS uq_catalogo_nome;
+`;
+
+const ALTER_CATALOGO_ADD_UNIDADE = `
+  ALTER TABLE catalogo ADD COLUMN IF NOT EXISTS unidade VARCHAR(20);
+`;
+
+const ALTER_CATALOGO_ADD_UNIQUE_IDX = `
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_catalogo_nome_unidade
+    ON catalogo (nome, COALESCE(unidade, ''));
+`;
+
+const MIGRATE_CATALOGO_MUTINGA = `
+  UPDATE catalogo SET unidade = 'mutinga'
+  WHERE categoria IN ('servico', 'combo') AND unidade IS NULL;
+`;
+
 const SEED_CATALOGO = `
-  INSERT INTO catalogo (nome, categoria, preco_venda, controla_estoque) VALUES
-    ('Corte',                                             'servico', 45.00, false),
-    ('Corte Infantil',                                    'servico', 45.00, false),
-    ('Barba',                                             'servico', 35.00, false),
-    ('Raspar Cabelo',                                     'servico', 30.00, false),
-    ('Raspar Barba',                                      'servico', 20.00, false),
-    ('Sobrancelha',                                       'servico', 15.00, false),
-    ('Sobrancelha com Cera',                              'servico', 20.00, false),
-    ('Depilação nariz',                                   'servico', 15.00, false),
-    ('Depilação orelha',                                  'servico', 15.00, false),
-    ('Depilação nariz + orelha',                          'servico', 30.00, false),
-    ('Pezinho',                                           'servico', 15.00, false),
-    ('Risco',                                             'servico',  5.00, false),
-    ('Hidratação',                                        'servico', 25.00, false),
-    ('Hidratação Barba',                                  'servico', 20.00, false),
-    ('Selagem',                                           'servico', 57.00, false),
-    ('Progressiva',                                       'servico', 79.00, false),
-    ('Luzes',                                             'servico',123.50, false),
-    ('Platinado',                                         'servico',197.50, false),
-    ('Limpeza de pele (facial)',                          'servico', 40.00, false),
-    ('Combo - Corte + Sobrancelha',                       'combo',   59.25, false),
-    ('Combo - Corte + Barba',                             'combo',   79.00, false),
-    ('Combo - Corte + Risco',                             'combo',   55.00, false),
-    ('Combo - Corte + Sobrancelha com Cera',              'combo',   69.13, false),
-    ('Combo - Corte + Barba + Sobrancelha',               'combo',   90.25, false),
-    ('Combo - Corte + Barba + Risco',                     'combo',   88.88, false),
-    ('Combo - Corte + Risco + Sobrancelha',               'combo',   69.13, false),
-    ('Combo - Corte + Progressiva',                       'combo',  122.00, false),
-    ('Combo Novo - 2 Cortes + 2 barbas + 2 sobrancelha',  'combo',  138.25, false),
-    ('Combo Novo - 4 Barbas',                             'combo',  104.50, false),
-    ('Combo Novo - 4 Cortes + 4 sobrancelha',             'combo',  167.88, false),
-    ('Combo Novo - 4 Cortes + 4 barbas + 4 sobrancelha',  'combo',  286.05, false),
-    ('Dia de Princeso (Corte + Barba + Sobrancelha + Limpeza de pele e Depilação)', 'combo', 138.25, false),
-    ('Pomada Pistache - Fox',    'produto_capilar',  22.71, true),
-    ('Pomada - Fox',             'produto_capilar',  24.69, true),
-    ('Pomada em Pó - Fox',       'produto_capilar',  39.50, true),
-    ('Shampoo 3 em 1 - Match',   'produto_capilar',  42.46, true),
-    ('Shampoo 4 em 1 - Fox',     'produto_capilar',  42.75, true),
-    ('Shampoo Ice - Fox',        'produto_capilar',  39.50, true),
-    ('Shampoo para Barba - Fox', 'produto_capilar',  38.00, true),
-    ('Shampoo White - Fox',      'produto_capilar',  54.31, true),
-    ('Condicionador Ice - Fox',  'produto_capilar',  39.50, true),
-    ('Leave-in',                 'produto_capilar',  52.25, true),
-    ('Balm - Match',             'produto_capilar',  42.46, true),
-    ('Óleo Spray',               'produto_capilar',  39.50, true),
-    ('Óleo Gota - Fox',          'produto_capilar',  41.00, true),
-    ('Óleo Gota - Match',        'produto_capilar',  43.00, true),
-    ('Pente de Madeira (Barba)', 'produto_capilar',  22.71, true),
-    ('Pente Garfo',              'produto_capilar',  30.00, true),
-    ('Minoxidil',                'produto_capilar',  98.75, true),
-    ('Cerveja Heineken',         'bebida',           11.00, true),
-    ('Cerveja - Petra',          'bebida',            5.00, true),
-    ('Cerveja - Amstel',         'bebida',           14.00, true),
-    ('Coca Cola 350ml',          'bebida',            7.60, true),
-    ('Guaraná',                  'bebida',            8.00, true),
-    ('Suco',                     'bebida',            6.91, true),
-    ('Salgadinho Fofura',        'snack',             3.95, true),
-    ('Salgadinho Torcida',       'snack',             3.95, true),
-    ('Salgadinho Bacon',         'snack',             9.88, true),
-    ('Doce de Amendoim',         'snack',             4.00, true),
-    ('Doce Cocada',              'snack',             4.00, true),
-    ('Pipoca',                   'snack',             7.90, true),
-    ('Cueca',                    'vestuario',        33.00, true),
-    ('Meia Infantil',            'vestuario',        12.00, true)
-  ON CONFLICT (nome) DO NOTHING;
+  INSERT INTO catalogo (nome, categoria, preco_venda, controla_estoque, unidade) VALUES
+    ('Corte',                                             'servico', 45.00, false, 'mutinga'),
+    ('Corte Infantil',                                    'servico', 45.00, false, 'mutinga'),
+    ('Barba',                                             'servico', 35.00, false, 'mutinga'),
+    ('Raspar Cabelo',                                     'servico', 30.00, false, 'mutinga'),
+    ('Raspar Barba',                                      'servico', 20.00, false, 'mutinga'),
+    ('Sobrancelha',                                       'servico', 15.00, false, 'mutinga'),
+    ('Sobrancelha com Cera',                              'servico', 20.00, false, 'mutinga'),
+    ('Depilação nariz',                                   'servico', 15.00, false, 'mutinga'),
+    ('Depilação orelha',                                  'servico', 15.00, false, 'mutinga'),
+    ('Depilação nariz + orelha',                          'servico', 30.00, false, 'mutinga'),
+    ('Pezinho',                                           'servico', 15.00, false, 'mutinga'),
+    ('Risco',                                             'servico',  5.00, false, 'mutinga'),
+    ('Hidratação',                                        'servico', 25.00, false, 'mutinga'),
+    ('Hidratação Barba',                                  'servico', 20.00, false, 'mutinga'),
+    ('Selagem',                                           'servico', 57.00, false, 'mutinga'),
+    ('Progressiva',                                       'servico', 79.00, false, 'mutinga'),
+    ('Luzes',                                             'servico',123.50, false, 'mutinga'),
+    ('Platinado',                                         'servico',197.50, false, 'mutinga'),
+    ('Limpeza de pele (facial)',                          'servico', 40.00, false, 'mutinga'),
+    ('Combo - Corte + Sobrancelha',                       'combo',   59.25, false, 'mutinga'),
+    ('Combo - Corte + Barba',                             'combo',   79.00, false, 'mutinga'),
+    ('Combo - Corte + Risco',                             'combo',   55.00, false, 'mutinga'),
+    ('Combo - Corte + Sobrancelha com Cera',              'combo',   69.13, false, 'mutinga'),
+    ('Combo - Corte + Barba + Sobrancelha',               'combo',   90.25, false, 'mutinga'),
+    ('Combo - Corte + Barba + Risco',                     'combo',   88.88, false, 'mutinga'),
+    ('Combo - Corte + Risco + Sobrancelha',               'combo',   69.13, false, 'mutinga'),
+    ('Combo - Corte + Progressiva',                       'combo',  122.00, false, 'mutinga'),
+    ('Combo Novo - 2 Cortes + 2 barbas + 2 sobrancelha',  'combo',  138.25, false, 'mutinga'),
+    ('Combo Novo - 4 Barbas',                             'combo',  104.50, false, 'mutinga'),
+    ('Combo Novo - 4 Cortes + 4 sobrancelha',             'combo',  167.88, false, 'mutinga'),
+    ('Combo Novo - 4 Cortes + 4 barbas + 4 sobrancelha',  'combo',  286.05, false, 'mutinga'),
+    ('Dia de Princeso (Corte + Barba + Sobrancelha + Limpeza de pele e Depilação)', 'combo', 138.25, false, 'mutinga'),
+    ('Pomada Pistache - Fox',    'produto_capilar',  22.71, true, NULL),
+    ('Pomada - Fox',             'produto_capilar',  24.69, true, NULL),
+    ('Pomada em Pó - Fox',       'produto_capilar',  39.50, true, NULL),
+    ('Shampoo 3 em 1 - Match',   'produto_capilar',  42.46, true, NULL),
+    ('Shampoo 4 em 1 - Fox',     'produto_capilar',  42.75, true, NULL),
+    ('Shampoo Ice - Fox',        'produto_capilar',  39.50, true, NULL),
+    ('Shampoo para Barba - Fox', 'produto_capilar',  38.00, true, NULL),
+    ('Shampoo White - Fox',      'produto_capilar',  54.31, true, NULL),
+    ('Condicionador Ice - Fox',  'produto_capilar',  39.50, true, NULL),
+    ('Leave-in',                 'produto_capilar',  52.25, true, NULL),
+    ('Balm - Match',             'produto_capilar',  42.46, true, NULL),
+    ('Óleo Spray',               'produto_capilar',  39.50, true, NULL),
+    ('Óleo Gota - Fox',          'produto_capilar',  41.00, true, NULL),
+    ('Óleo Gota - Match',        'produto_capilar',  43.00, true, NULL),
+    ('Pente de Madeira (Barba)', 'produto_capilar',  22.71, true, NULL),
+    ('Pente Garfo',              'produto_capilar',  30.00, true, NULL),
+    ('Minoxidil',                'produto_capilar',  98.75, true, NULL),
+    ('Cerveja Heineken',         'bebida',           11.00, true, NULL),
+    ('Cerveja - Petra',          'bebida',            5.00, true, NULL),
+    ('Cerveja - Amstel',         'bebida',           14.00, true, NULL),
+    ('Coca Cola 350ml',          'bebida',            7.60, true, NULL),
+    ('Guaraná',                  'bebida',            8.00, true, NULL),
+    ('Suco',                     'bebida',            6.91, true, NULL),
+    ('Salgadinho Fofura',        'snack',             3.95, true, NULL),
+    ('Salgadinho Torcida',       'snack',             3.95, true, NULL),
+    ('Salgadinho Bacon',         'snack',             9.88, true, NULL),
+    ('Doce de Amendoim',         'snack',             4.00, true, NULL),
+    ('Doce Cocada',              'snack',             4.00, true, NULL),
+    ('Pipoca',                   'snack',             7.90, true, NULL),
+    ('Cueca',                    'vestuario',        33.00, true, NULL),
+    ('Meia Infantil',            'vestuario',        12.00, true, NULL)
+  ON CONFLICT DO NOTHING;
+`;
+
+const SEED_CATALOGO_TAMBORE = `
+  INSERT INTO catalogo (nome, categoria, preco_venda, controla_estoque, unidade) VALUES
+    ('Corte',                  'servico',  70.00, false, 'tambore'),
+    ('Barba',                  'servico',  60.00, false, 'tambore'),
+    ('Sobrancelha',            'servico',  20.00, false, 'tambore'),
+    ('Pezinho',                'servico',  20.00, false, 'tambore'),
+    ('Raspar Cabelo',          'servico',  50.00, false, 'tambore'),
+    ('Hidratação',             'servico',  30.00, false, 'tambore'),
+    ('Limpeza de pele (facial)','servico', 50.00, false, 'tambore'),
+    ('Selagem',                'servico',  80.00, false, 'tambore'),
+    ('Progressiva',            'servico', 120.00, false, 'tambore'),
+    ('Luzes',                  'servico', 150.00, false, 'tambore'),
+    ('Platinado',              'servico', 250.00, false, 'tambore'),
+    ('Combo - Corte + Barba',  'combo',   130.00, false, 'tambore')
+  ON CONFLICT DO NOTHING;
 `;
 
 const CREATE_METAS_UNIDADE = `
@@ -401,6 +436,7 @@ async function seedUsuarios() {
   const seeds = [
     { nome: 'Thieco Leandro', username: 'thieco',  senha: 'Thieco@2025!',  role: 'admin',    profKey: 'thieco', unidade_acesso: null      },
     { nome: 'Caixa Mutinga',  username: 'mutinga', senha: 'Mutinga@2025!', role: 'operador', profKey: null,     unidade_acesso: 'mutinga' },
+    { nome: 'Caixa Tambore',  username: 'tambore', senha: 'Tambore@2025!', role: 'operador', profKey: null,     unidade_acesso: 'tambore' },
   ];
 
   for (const u of seeds) {
@@ -414,7 +450,7 @@ async function seedUsuarios() {
       [u.nome, u.username, hash, u.role, findId(u.profKey), u.unidade_acesso]
     );
   }
-  console.log('  ✓ Usuários verificados: thieco (admin), mutinga (operador)');
+  console.log('  ✓ Usuários verificados: thieco (admin), mutinga (operador), tambore (operador)');
 }
 
 // ─── Migrations ─────────────────────────────────────────────────────────────
@@ -441,7 +477,12 @@ async function runMigrations() {
     await query(CREATE_METAS);
     await query(CREATE_METAS_UNIDADE);
     await query(CREATE_CATALOGO);
+    await query(ALTER_CATALOGO_DROP_CONSTRAINT);
+    await query(ALTER_CATALOGO_ADD_UNIDADE);
+    await query(ALTER_CATALOGO_ADD_UNIQUE_IDX);
+    await query(MIGRATE_CATALOGO_MUTINGA);
     await query(SEED_CATALOGO);
+    await query(SEED_CATALOGO_TAMBORE);
     await fixCatalogoEncoding();
     await query(CREATE_CONFIGURACOES);
     await query(SEED_CONFIGURACOES);
@@ -686,12 +727,13 @@ const MetaUnidade = {
 };
 
 const Catalogo = {
-  findAll: ({ categoria, controla_estoque, ativo = true } = {}) => {
+  findAll: ({ categoria, controla_estoque, ativo = true, unidade } = {}) => {
     const conditions = [];
     const params = [];
     if (ativo !== undefined) conditions.push(`ativo = $${params.push(ativo)}`);
     if (categoria) conditions.push(`categoria = $${params.push(categoria)}`);
     if (controla_estoque !== undefined) conditions.push(`controla_estoque = $${params.push(controla_estoque === 'true' || controla_estoque === true)}`);
+    if (unidade) conditions.push(`(unidade = $${params.push(unidade)} OR unidade IS NULL)`);
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     return query(
       `SELECT * FROM catalogo ${where} ORDER BY categoria, nome`,
@@ -699,17 +741,17 @@ const Catalogo = {
     );
   },
   findById: (id) => query(`SELECT * FROM catalogo WHERE id = $1`, [id]),
-  create: ({ nome, categoria, preco_venda, preco_custo, quantidade, quantidade_minima, unidade_medida, controla_estoque }) =>
+  create: ({ nome, categoria, preco_venda, preco_custo, quantidade, quantidade_minima, unidade_medida, controla_estoque, unidade }) =>
     query(
-      `INSERT INTO catalogo (nome, categoria, preco_venda, preco_custo, quantidade, quantidade_minima, unidade_medida, controla_estoque)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      `INSERT INTO catalogo (nome, categoria, preco_venda, preco_custo, quantidade, quantidade_minima, unidade_medida, controla_estoque, unidade)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [nome, categoria ?? 'servico', preco_venda ?? 0, preco_custo ?? null,
-       quantidade ?? 0, quantidade_minima ?? 0, unidade_medida ?? 'un', controla_estoque ?? false]
+       quantidade ?? 0, quantidade_minima ?? 0, unidade_medida ?? 'un', controla_estoque ?? false, unidade ?? null]
     ),
   update: (id, fields) => {
     const sets = [];
     const params = [];
-    const allowed = ['nome','categoria','preco_venda','preco_custo','quantidade','quantidade_minima','unidade_medida','controla_estoque','ativo'];
+    const allowed = ['nome','categoria','preco_venda','preco_custo','quantidade','quantidade_minima','unidade_medida','controla_estoque','ativo','unidade'];
     allowed.forEach(k => {
       if (fields[k] !== undefined) sets.push(`${k} = $${params.push(fields[k])}`);
     });

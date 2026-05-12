@@ -145,9 +145,14 @@ export default function RegistroVenda() {
   const catalogoProdutos = catalogo.filter(i => i.controla_estoque);
 
   useEffect(() => {
-    api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
-    api.catalogo().then(d => setCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
-  }, []);
+    if (user?.unidade === 'tambore') {
+      api.profissionais({ unidade: 'tambore' }).then(setBarbeiros).catch(() => {});
+    } else {
+      api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
+    }
+    const unidade = user?.unidade ?? 'mutinga';
+    api.catalogo({ unidade }).then(d => setCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [user?.unidade]);
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -356,7 +361,7 @@ export default function RegistroVenda() {
         </div>
 
         {/* Serviço adicional (Upsell) */}
-        <div className="border border-surface-border rounded-xl overflow-hidden">
+        <div className="border border-surface-border rounded-xl">
           <button
             type="button"
             onClick={() => setTemUpsell(v => !v)}

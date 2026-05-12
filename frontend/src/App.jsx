@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, Lock, Brain, Receipt, TrendingUp, Tag, UserRound, Scissors, BarChart2, Trophy, Package } from 'lucide-react';
+import { LayoutDashboard, Users, Lock, Brain, Receipt, TrendingUp, Tag, UserRound, Scissors, BarChart2, Trophy, Package, ClipboardList } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Header from './components/Header';
@@ -16,6 +16,7 @@ import GestaoMetas from './pages/GestaoMetas';
 import MetasIndividuais from './pages/MetasIndividuais';
 import MetasUnidade from './pages/MetasUnidade';
 import Estoque from './pages/Estoque';
+import Lancamentos from './pages/Lancamentos';
 
 // ─── Aba de navegação ────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ function MetasPage() {
   );
 }
 
-// ─── App do Operador (Mutinga) ───────────────────────────────────────────────
+// ─── App do Operador ─────────────────────────────────────────────────────────
 
 function AppOperador() {
   const [aba, setAba] = useState('registro');
@@ -89,9 +90,10 @@ function AppOperador() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex gap-1 overflow-x-auto">
             {[
-              { id: 'registro',  label: 'Registro',  icon: Scissors  },
-              { id: 'relatorio', label: 'Relatório', icon: BarChart2 },
-              { id: 'metas',     label: 'Meta',      icon: Trophy    },
+              { id: 'registro',     label: 'Registro',     icon: Scissors       },
+              { id: 'lancamentos',  label: 'Lançamentos',  icon: ClipboardList  },
+              { id: 'relatorio',    label: 'Relatório',    icon: BarChart2      },
+              { id: 'metas',        label: 'Meta',         icon: Trophy         },
             ].map((p) => {
               const Icon = p.icon;
               return (
@@ -113,9 +115,10 @@ function AppOperador() {
       </nav>
 
       <div className="animate-fade-in" key={aba}>
-        {aba === 'registro'  && <RegistroVenda />}
-        {aba === 'relatorio' && <RelatorioOperador />}
-        {aba === 'metas'     && <MetasUnidade />}
+        {aba === 'registro'    && <RegistroVenda />}
+        {aba === 'lancamentos' && <Lancamentos />}
+        {aba === 'relatorio'   && <RelatorioOperador />}
+        {aba === 'metas'       && <MetasUnidade />}
       </div>
     </div>
   );
@@ -132,6 +135,7 @@ function AppAutenticado() {
   const PAGINAS = [
     { id: 'dashboard',    label: 'Dashboard',               icon: LayoutDashboard, admin: false },
     { id: 'performance',  label: 'Performance',              icon: TrendingUp,      admin: false },
+    { id: 'lancamentos',  label: 'Lançamentos',              icon: ClipboardList,   admin: true  },
     { id: 'inteligencia', label: 'Inteligência Financeira',  icon: Brain,           admin: true  },
     { id: 'despesas',     label: 'Despesas',                 icon: Receipt,         admin: true  },
     { id: 'combos',       label: 'Combos',                   icon: Tag,             admin: true  },
@@ -168,13 +172,14 @@ function AppAutenticado() {
       <div className="animate-fade-in" key={paginaAtual}>
         {paginaAtual === 'dashboard'    && <Dashboard />}
         {paginaAtual === 'performance'  && <Performance />}
+        {paginaAtual === 'lancamentos'  && isAdmin && <Lancamentos />}
         {paginaAtual === 'inteligencia' && isAdmin && <IntelFinanceira />}
         {paginaAtual === 'despesas'     && isAdmin && <RegistroGasto />}
         {paginaAtual === 'combos'       && isAdmin && <Combos />}
         {paginaAtual === 'clientes'     && isAdmin && <Clientes />}
-        {paginaAtual === 'gestao' && isAdmin && <GestaoTime />}
-        {paginaAtual === 'metas'    && isAdmin && <MetasPage />}
-        {paginaAtual === 'estoque'  && isAdmin && <Estoque />}
+        {paginaAtual === 'gestao'       && isAdmin && <GestaoTime />}
+        {paginaAtual === 'metas'        && isAdmin && <MetasPage />}
+        {paginaAtual === 'estoque'      && isAdmin && <Estoque />}
       </div>
     </div>
   );

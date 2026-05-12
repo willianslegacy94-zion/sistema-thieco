@@ -7,11 +7,12 @@ const router = Router();
 // GET /catalogo — público (usado no RegistroVenda para sugestões)
 router.get('/', async (req, res) => {
   try {
-    const { categoria, controla_estoque, ativo = 'true' } = req.query;
+    const { categoria, controla_estoque, ativo = 'true', unidade } = req.query;
     const { rows } = await Catalogo.findAll({
       categoria,
       controla_estoque,
       ativo: ativo === 'false' ? false : true,
+      unidade,
     });
     res.json(rows);
   } catch (err) {

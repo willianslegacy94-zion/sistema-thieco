@@ -1,7 +1,8 @@
 const { Router } = require('express');
-const { body, query: qv, validationResult } = require('express-validator');
+const { body, param, query: qv, validationResult } = require('express-validator');
 const { Venda, Profissional } = require('../models');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { query } = require('../db');
 
 const router = Router();
 
@@ -91,6 +92,88 @@ router.post('/',
         qtd_clientes: qtd_clientes ?? 1,
       });
       res.status(201).json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ erro: err.message });
+    }
+  }
+);
+
+// PUT /vendas/:id — admin ou operador (sua unidade)
+router.put('/:id',
+  authenticate,
+  (req, res, next) => {
+    const { role } = req.user;
+    if (role !== 'admin' && role !== 'operador')
+      return res.status(403).json({ erro: 'Acesso negado.' });
+    next();
+  },
+  param('id').isInt(),
+  body('servico').optional().trim().notEmpty(),
+  body('valor').optional().isFloat({ min: 0 }),
+  body('forma_pagamento').optional().isIn(FORMAS_PAGAMENTO),
+  body('desconto').optional().isFloat({ min: 0 }),
+  body('observacao').optional().isString(),
+  body('data').optional().isDate(),
+  body('profissional_id').optional({ nullable: true }).isInt(),
+  body('tipo_cliente').optional().isIn(TIPOS_CLIENTE),
+  body('qtd_clientes').optional().isInt({ min: 1 }),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
+
+    try {
+      const { rows: existing } = await query('SELECT * FROM vendas WHERE id = $1', [req.params.id]);
+      if (!existing.length) return res.status(404).json({ erro: 'Venda não encontrada.' });
+
+      const venda = existing[0];
+      if (req.user.role === 'operador' && venda.unidade !== req.user.unidade)
+        return res.status(403).json({ erro: 'Sem permissão para editar esta venda.' });
+
+      const EDITAVEIS = ['servico', 'valor', 'forma_pagamento', 'desconto', 'observacao', 'data', 'profissional_id', 'tipo_cliente', 'qtd_clientes'];
+      const sets = [];
+      const params = [];
+
+      for (const campo of EDITAVEIS) {
+        if (req.body[campo] !== undefined) {
+          sets.push(`${campo} = $${params.push(req.body[campo])}`);
+        }
+      }
+
+      if (req.body.valor !== undefined || req.body.profissional_id !== undefined) {
+        const novoValor    = req.body.valor          !== undefined ? parseFloat(req.body.valor)  : parseFloat(venda.valor);
+        const novoProfId   = req.body.profissional_id !== undefined ? req.body.profissional_id    : venda.profissional_id;
+        const novaComissao = await calcularComissao(novoProfId, novoValor);
+        sets.push(`comissao = $${params.push(novaComissao)}`);
+      }
+
+      if (sets.length === 0) return res.status(422).json({ erro: 'Nenhum campo para atualizar.' });
+
+      params.push(req.params.id);
+      const { rows } = await query(
+        `UPDATE vendas SET ${sets.join(', ')} WHERE id = $${params.length}
+         RETURNING *, (SELECT nome FROM profissionais WHERE id = profissional_id) AS profissional_nome`,
+        params
+      );
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ erro: err.message });
+    }
+  }
+);
+
+// DELETE /vendas/:id — admin only
+router.delete('/:id',
+  authenticate,
+  requireAdmin,
+  param('id').isInt(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
+
+    try {
+      const { rowCount } = await query('DELETE FROM vendas WHERE id = $1', [req.params.id]);
+      if (!rowCount) return res.status(404).json({ erro: 'Venda não encontrada.' });
+      res.status(204).end();
     } catch (err) {
       res.status(500).json({ erro: err.message });
     }
