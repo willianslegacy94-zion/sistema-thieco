@@ -29,6 +29,13 @@ function mesAtual() {
   };
 }
 
+function isValidDate(s) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  if (parseInt(s, 10) < 2000) return false;
+  const d = new Date(s + 'T00:00:00');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 const FORM_INICIAL = {
   unidade:        'tambore',
   categoria:      'outros',
@@ -194,7 +201,9 @@ export default function RegistroGasto() {
     finally { setCarregando(false); }
   }
 
-  useEffect(() => { carregarGastos(); }, [filtro]);
+  useEffect(() => {
+    if (isValidDate(filtro.inicio) && isValidDate(filtro.fim)) carregarGastos();
+  }, [filtro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function onChange(e) {
     const { name, value } = e.target;

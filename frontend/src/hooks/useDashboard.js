@@ -13,6 +13,7 @@ function fimMes() {
 }
 function isValidDate(s) {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  if (parseInt(s, 10) < 2000) return false;
   const d = new Date(s + 'T00:00:00');
   return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
@@ -105,7 +106,9 @@ export function useDashboard() {
     }
   }, [filtros, isAdmin, profissionalId]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => {
+    if (isValidDate(filtros.inicio) && isValidDate(filtros.fim)) carregar();
+  }, [carregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { dados, loading, erro, filtros, setFiltros, recarregar: carregar };
 }
