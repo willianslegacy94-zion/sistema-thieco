@@ -158,7 +158,7 @@ router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, re
     const comissoesPorProfissional = await query(`
       SELECT p.nome AS profissional, v.unidade, COUNT(*) AS qtd_atendimentos,
              SUM(v.valor) AS faturamento_gerado, SUM(v.comissao) AS comissao_total
-      FROM vendas v LEFT JOIN profissionais p ON p.id = v.profissional_id
+      FROM vendas v LEFT JOIN profissionais p ON p.id = v.profissional_id AND p.ativo = true
       WHERE v.data BETWEEN $1 AND $2 ${unidadeFiltro.replace(/unidade/g, 'v.unidade')}
       GROUP BY p.nome, v.unidade ORDER BY faturamento_gerado DESC
     `, [inicio, fim]);
@@ -235,7 +235,7 @@ router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
         SUM(v.comissao)        AS comissao_total,
         ROUND(AVG(v.valor), 2) AS ticket_medio
       FROM vendas v
-      INNER JOIN profissionais p ON p.id = v.profissional_id
+      INNER JOIN profissionais p ON p.id = v.profissional_id AND p.ativo = true
       WHERE v.data BETWEEN $1 AND $2 ${unidadeFiltro}
       GROUP BY p.id, p.nome, p.percentual_comissao, v.unidade
       ORDER BY faturamento_bruto DESC
@@ -333,7 +333,7 @@ router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async
              ROUND(SUM(v.valor), 2)        AS faturamento_bruto,
              ROUND(SUM(v.comissao), 2)     AS comissao_total
       FROM vendas v
-      INNER JOIN profissionais p ON p.id = v.profissional_id
+      INNER JOIN profissionais p ON p.id = v.profissional_id AND p.ativo = true
       WHERE v.data BETWEEN $1 AND $2 ${ufv}
       GROUP BY p.id, p.nome, p.unidade
       ORDER BY ticket_medio DESC NULLS LAST
