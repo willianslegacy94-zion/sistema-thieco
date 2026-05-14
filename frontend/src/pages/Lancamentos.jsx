@@ -32,11 +32,19 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isValidDate(s) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  if (parseInt(s, 10) < 2000) return false;
+  const d = new Date(s + 'T00:00:00');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 // ─── Modal de Edição ──────────────────────────────────────────────────────────
 
 const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outra'];
 
 function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalvar }) {
+  const [erroData, setErroData] = useState(null);
   const [form, setForm] = useState({
     profissional_id: venda.profissional_id ?? '',
     servico:         venda.servico ?? '',
@@ -58,6 +66,11 @@ function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalva
 
   function onSubmit(e) {
     e.preventDefault();
+    if (!isValidDate(form.data)) {
+      setErroData('Data inválida. Verifique se o ano está completo (ex: 2026).');
+      return;
+    }
+    setErroData(null);
     const payload = {
       profissional_id: form.profissional_id ? parseInt(form.profissional_id) : null,
       servico:         form.servico.trim(),
@@ -89,9 +102,9 @@ function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalva
           </button>
         </div>
 
-        {erroSalvar && (
+        {(erroSalvar || erroData) && (
           <div className="mx-5 mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-xs">
-            <AlertCircle size={14} className="shrink-0" /> {erroSalvar}
+            <AlertCircle size={14} className="shrink-0" /> {erroData ?? erroSalvar}
           </div>
         )}
 

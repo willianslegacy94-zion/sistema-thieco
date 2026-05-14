@@ -15,9 +15,10 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const router = Router();
 
 // Valida datas opcionalmente — em vez de 422, faz fallback para o mês atual
+// { values: 'falsy' } trata string vazia como ausente, evitando 422 durante edição manual
 const periodoValidators = [
-  qv('inicio').optional().isDate(),
-  qv('fim').optional().isDate(),
+  qv('inicio').optional({ values: 'falsy' }).isDate(),
+  qv('fim').optional({ values: 'falsy' }).isDate(),
   qv('unidade').optional().isIn(['tambore', 'mutinga']),
 ];
 

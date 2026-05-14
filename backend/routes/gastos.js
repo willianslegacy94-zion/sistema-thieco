@@ -14,8 +14,8 @@ router.get('/',
   authenticate,
   requireAdmin,
   qv('unidade').optional().isIn(UNIDADES_VALIDAS),
-  qv('inicio').optional().isDate(),
-  qv('fim').optional().isDate(),
+  qv('inicio').optional({ values: 'falsy' }).isDate(),
+  qv('fim').optional({ values: 'falsy' }).isDate(),
   qv('categoria').optional().isString(),
   async (req, res) => {
     const errors = validationResult(req);

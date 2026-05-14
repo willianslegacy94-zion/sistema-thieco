@@ -36,8 +36,8 @@ async function calcularComissao(profissional_id, valor) {
 router.get('/',
   authenticate,
   qv('unidade').optional().isIn(UNIDADES_VALIDAS),
-  qv('inicio').optional().isDate(),
-  qv('fim').optional().isDate(),
+  qv('inicio').optional({ values: 'falsy' }).isDate(),
+  qv('fim').optional({ values: 'falsy' }).isDate(),
   qv('profissional_id').optional().isInt(),
   async (req, res) => {
     const errors = validationResult(req);
