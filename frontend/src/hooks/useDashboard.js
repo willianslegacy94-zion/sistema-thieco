@@ -11,6 +11,11 @@ function fimMes() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
+function isValidDate(s) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
 
 function gerarProjecao(entradasPorDia, inicio, fim) {
   const start = new Date(inicio + 'T00:00:00');
@@ -70,7 +75,10 @@ export function useDashboard() {
     setLoading(true);
     setErro(null);
     try {
-      const params = { inicio: filtros.inicio, fim: filtros.fim };
+      // Garante datas válidas — cai para o mês atual se o usuário deixou em branco ou digitou algo inválido
+      const inicio = isValidDate(filtros.inicio) ? filtros.inicio : inicioMes();
+      const fim    = isValidDate(filtros.fim)    ? filtros.fim    : fimMes();
+      const params = { inicio, fim };
       if (filtros.unidade) params.unidade = filtros.unidade;
 
       if (isAdmin) {
@@ -80,7 +88,7 @@ export function useDashboard() {
           api.dre(params),
           api.comissoes(params),
         ]);
-        const projecao = gerarProjecao(fluxo.entradas_por_dia, filtros.inicio, filtros.fim);
+        const projecao = gerarProjecao(fluxo.entradas_por_dia, inicio, fim);
         setDados({ fluxo, dre, comissoes, projecao });
       } else {
         // Barbeiro: apenas comissões (backend retorna ranking + seus dados)

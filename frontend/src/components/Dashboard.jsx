@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDashboard } from '../hooks/useDashboard';
 import FilterBar from './FilterBar';
 import MetricCard from './MetricCard';
-import GraficoProjecao from './GraficoProjecao';
 import RankingBarbeiros from './RankingBarbeiros';
 import ImportButton from './ImportButton';
 
@@ -95,7 +94,6 @@ function DashboardBarbeiro({ dados, loading, erro, filtros, setFiltros, recarreg
 
 function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar }) {
   const fluxo  = dados?.fluxo?.totais ?? {};
-  const projecao = dados?.projecao ?? [];
 
   const receitaBruta   = toNum(fluxo.receita_bruta);
   const totalComissoes = toNum(fluxo.total_comissoes);
@@ -159,11 +157,6 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar 
           )}
         </section>
       )}
-
-      {/* Gráfico */}
-      <section className="mb-6">
-        <GraficoProjecao dados={projecao} loading={loading} />
-      </section>
 
       {/* Ranking + Importação */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

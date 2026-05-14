@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Scissors, CheckCircle, AlertCircle, Plus, ChevronDown } from 'lucide-react';
+import { Scissors, CheckCircle, AlertCircle, Plus, ChevronDown, Search, Tag, RefreshCw, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -11,32 +11,37 @@ const FORMAS_PAGAMENTO = [
   { value: 'cortesia', label: 'Cortesia' },
 ];
 
-const TIPOS_CLIENTE = [
-  { value: 'agendado',     label: 'Agendado (Booksy)' },
-  { value: 'primeira_vez', label: 'Primeira vez' },
-  { value: 'esporadico',   label: 'Esporádico (passou na porta)' },
+const ORIGENS_UNIFICADAS = [
+  { value: 'agendado',     label: 'Agendado (Booksy)', campo: 'tipo'   },
+  { value: 'primeira_vez', label: 'Primeira vez',      campo: 'tipo'   },
+  { value: 'esporadico',   label: 'Esporádico',        campo: 'tipo'   },
+  { value: 'whatsapp',     label: 'WhatsApp',          campo: 'origem' },
+  { value: 'indicacao',    label: 'Indicação',         campo: 'origem' },
 ];
+
+const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outra'];
+
+const TAXAS_PAGBANK = { debito: 0.0119, credito: 0.0349, pix: 0, dinheiro: 0, cortesia: 0 };
+
+function fmt(v) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
+}
 
 function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const FORM_INICIAL = {
-  profissional_id:         '',
-  servico:                 '',
-  valor:                   '',
-  forma_pagamento:         'dinheiro',
-  produto:                 '',
-  produto_valor:           '',
-  produto_forma_pagamento: 'dinheiro',
-  desconto:                '',
-  tipo_cliente:            'agendado',
-  qtd_clientes:            1,
-  data:                    hojeISO(),
-  observacao:              '',
-};
+function addDias(dataISO, n) {
+  const d = new Date(dataISO + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
 
-const UPSELL_INICIAL = { servico: '', valor: '', forma_pagamento: 'dinheiro' };
+function fmtDataBR(iso) {
+  if (!iso) return '—';
+  const [a, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${a}`;
+}
 
 // ─── Autocomplete (serviços e produtos) ─────────────────────────────────────
 
@@ -44,9 +49,7 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
   const [aberto, setAberto] = useState(false);
   const ref = useRef(null);
 
-  const sugestoes = catalogo
-    .filter(i => !value || i.nome.toLowerCase().includes(value.toLowerCase()));
-
+  const sugestoes = catalogo.filter(i => !value || i.nome.toLowerCase().includes(value.toLowerCase()));
   const individuais = grupos ? sugestoes.filter(i => !i.nome.toLowerCase().startsWith('combo')) : [];
   const combos      = grupos ? sugestoes.filter(i =>  i.nome.toLowerCase().startsWith('combo')) : [];
 
@@ -66,9 +69,7 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
         className="w-full text-left px-3 py-2.5 text-sm hover:bg-onix-300/60 transition-colors flex justify-between items-center"
       >
         <span className="text-gold-light">{item.nome}</span>
-        <span className="text-gold text-xs font-semibold ml-2 shrink-0">
-          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.preco_venda)}
-        </span>
+        <span className="text-gold text-xs font-semibold ml-2 shrink-0">{fmt(item.preco_venda)}</span>
       </button>
     );
   }
@@ -97,17 +98,13 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
             <>
               {individuais.length > 0 && (
                 <>
-                  <li className="px-3 pt-2 pb-1 text-[10px] text-gold-muted/60 uppercase tracking-widest font-semibold select-none">
-                    Serviços
-                  </li>
+                  <li className="px-3 pt-2 pb-1 text-[10px] text-gold-muted/60 uppercase tracking-widest font-semibold select-none">Serviços</li>
                   {individuais.map(item => <li key={item.id}><ItemBtn item={item} /></li>)}
                 </>
               )}
               {combos.length > 0 && (
                 <>
-                  <li className={`px-3 pt-2 pb-1 text-[10px] text-gold-muted/60 uppercase tracking-widest font-semibold select-none ${individuais.length > 0 ? 'border-t border-surface-border mt-1' : ''}`}>
-                    Combos
-                  </li>
+                  <li className={`px-3 pt-2 pb-1 text-[10px] text-gold-muted/60 uppercase tracking-widest font-semibold select-none ${individuais.length > 0 ? 'border-t border-surface-border mt-1' : ''}`}>Combos</li>
                   {combos.map(item => <li key={item.id}><ItemBtn item={item} /></li>)}
                 </>
               )}
@@ -121,21 +118,35 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
   );
 }
 
-// ─── Componente principal ────────────────────────────────────────────────────
+// ─── Aba: Venda Normal ───────────────────────────────────────────────────────
 
-export default function RegistroVenda() {
-  const { user } = useAuth();
-  const [barbeiros, setBarbeiros] = useState([]);
-  const [catalogo,  setCatalogo]  = useState([]);
-  const [form,      setForm]      = useState(FORM_INICIAL);
-  const [upsell,    setUpsell]    = useState(UPSELL_INICIAL);
-  const [temUpsell, setTemUpsell] = useState(false);
-  const [enviando,  setEnviando]  = useState(false);
-  const [sucesso,   setSucesso]   = useState(null);
-  const [erro,      setErro]      = useState(null);
+const FORM_INICIAL = {
+  profissional_id: '',
+  servico:         '',
+  valor:           '',
+  produto:         '',
+  produto_valor:   '',
+  produto_qtd:     1,
+  desconto:        '',
+  origens:         ['agendado'],
+  nome_cliente:    '',
+  qtd_clientes:    1,
+  data:            hojeISO(),
+  observacao:      '',
+};
 
-  const catalogoServicos = catalogo
-    .filter(i => !i.controla_estoque)
+const UPSELL_INICIAL = { servico: '', valor: '' };
+
+function AbaVenda({ barbeiros, catalogo, user }) {
+  const [form,       setForm]       = useState(FORM_INICIAL);
+  const [upsell,     setUpsell]     = useState(UPSELL_INICIAL);
+  const [temUpsell,  setTemUpsell]  = useState(false);
+  const [pagamentos, setPagamentos] = useState([{ forma: 'dinheiro', valor: '', bandeira: '' }]);
+  const [enviando,   setEnviando]   = useState(false);
+  const [sucesso,    setSucesso]    = useState(null);
+  const [erro,       setErro]       = useState(null);
+
+  const catalogoServicos = catalogo.filter(i => !i.controla_estoque)
     .sort((a, b) => {
       const aCombo = a.nome.toLowerCase().startsWith('combo');
       const bCombo = b.nome.toLowerCase().startsWith('combo');
@@ -144,86 +155,151 @@ export default function RegistroVenda() {
     });
   const catalogoProdutos = catalogo.filter(i => i.controla_estoque);
 
-  useEffect(() => {
-    if (user?.unidade === 'tambore') {
-      api.profissionais({ unidade: 'tambore' }).then(setBarbeiros).catch(() => {});
-    } else {
-      api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
-    }
-    const unidade = user?.unidade ?? 'mutinga';
-    api.catalogo({ unidade }).then(d => setCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [user?.unidade]);
-
   function onChange(e) {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
   }
-
   function onChangeUpsell(e) {
     const { name, value } = e.target;
     setUpsell(u => ({ ...u, [name]: value }));
   }
-
   function selecionarServico(nome, preco) {
     setForm(f => ({ ...f, servico: nome, valor: parseFloat(preco).toFixed(2) }));
   }
-
   function selecionarProduto(nome, preco) {
     setForm(f => ({ ...f, produto: nome, produto_valor: parseFloat(preco).toFixed(2) }));
   }
-
   function selecionarUpsell(nome, preco) {
     setUpsell(u => ({ ...u, servico: nome, valor: parseFloat(preco).toFixed(2) }));
   }
 
+  // ─── Cálculos em tempo real ───────────────────────────────────────────────
+  const totalServico = (parseFloat(form.valor) || 0) * (parseInt(form.qtd_clientes) || 1);
+  const totalProduto = form.produto.trim()
+    ? (parseFloat(form.produto_valor) || 0) * (parseInt(form.produto_qtd) || 1)
+    : 0;
+  const totalUpsell = (temUpsell && upsell.servico.trim())
+    ? (parseFloat(upsell.valor) || 0)
+    : 0;
+  const desconto   = parseFloat(form.desconto) || 0;
+  const totalBruto = Math.max(0, totalServico + totalProduto + totalUpsell - desconto);
+  const totalPago  = pagamentos.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+  const restante   = parseFloat((totalBruto - totalPago).toFixed(2));
+
+  // Auto-preenche valor quando há 1 único método de pagamento
+  useEffect(() => {
+    setPagamentos(prev => {
+      if (prev.length === 1) {
+        return [{ ...prev[0], valor: totalBruto > 0 ? totalBruto.toFixed(2) : '' }];
+      }
+      return prev;
+    });
+  }, [totalBruto]);
+
+  // ─── Helpers de pagamento ─────────────────────────────────────────────────
+  function addPagamento() {
+    const sugerido = restante > 0 ? restante.toFixed(2) : '';
+    setPagamentos(ps => [...ps, { forma: 'dinheiro', valor: sugerido, bandeira: '' }]);
+  }
+  function removePagamento(i) {
+    setPagamentos(ps => ps.filter((_, idx) => idx !== i));
+  }
+  function updatePagamento(i, field, value) {
+    setPagamentos(ps => ps.map((p, idx) => idx === i ? { ...p, [field]: value } : p));
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
+
+    if (Math.abs(restante) > 0.01) {
+      setErro(restante > 0
+        ? `Faltam ${fmt(restante)} para completar o pagamento.`
+        : `O valor pago excede o total em ${fmt(Math.abs(restante))}.`
+      );
+      return;
+    }
+
     setEnviando(true);
     setErro(null);
     setSucesso(null);
+
     try {
-      const payload = {
+      const basePayload = {
         profissional_id: form.profissional_id ? parseInt(form.profissional_id) : undefined,
         servico:         form.servico.trim(),
-        valor:           parseFloat(form.valor),
-        forma_pagamento: form.forma_pagamento,
-        desconto:        form.desconto ? parseFloat(form.desconto) : 0,
-        tipo_cliente:    form.tipo_cliente,
-        qtd_clientes:    parseInt(form.qtd_clientes) || 1,
+        tipo_cliente:    form.origens.find(o => ['agendado','esporadico','primeira_vez'].includes(o)) ?? 'agendado',
+        origem_cliente:  form.origens.find(o => ['whatsapp','indicacao'].includes(o)) ?? undefined,
         data:            form.data,
+        nome_cliente:    form.nome_cliente.trim(),
         ...(form.observacao.trim() ? { observacao: form.observacao.trim() } : {}),
       };
 
-      const vendaPrincipal = await api.criarVenda(payload);
+      const primeiraForma    = pagamentos[0]?.forma ?? 'dinheiro';
+      const primeiraBandeira = pagamentos[0]?.bandeira || undefined;
+      let primeiraVendaId;
+
+      if (pagamentos.length === 1) {
+        // Pagamento único — fluxo tradicional
+        const p = pagamentos[0];
+        const venda = await api.criarVenda({
+          ...basePayload,
+          valor:           parseFloat(form.valor),
+          qtd_clientes:    parseInt(form.qtd_clientes) || 1,
+          desconto:        parseFloat(form.desconto) || 0,
+          forma_pagamento: p.forma,
+          bandeira_cartao: p.bandeira || undefined,
+        });
+        primeiraVendaId = venda.id;
+      } else {
+        // Pagamento dividido — uma venda por método
+        for (let i = 0; i < pagamentos.length; i++) {
+          const p = pagamentos[i];
+          const venda = await api.criarVenda({
+            ...basePayload,
+            valor:           parseFloat(p.valor),
+            qtd_clientes:    1,
+            desconto:        0,
+            forma_pagamento: p.forma,
+            bandeira_cartao: p.bandeira || undefined,
+          });
+          if (i === 0) primeiraVendaId = venda.id;
+        }
+      }
 
       if (form.produto.trim() && form.produto_valor) {
         await api.criarVenda({
-          ...payload,
+          ...basePayload,
           servico:         form.produto.trim(),
-          valor:           parseFloat(form.produto_valor),
-          forma_pagamento: form.produto_forma_pagamento,
+          valor:           parseFloat(form.produto_valor) * (parseInt(form.produto_qtd) || 1),
+          qtd_clientes:    1,
           desconto:        0,
+          forma_pagamento: primeiraForma,
+          bandeira_cartao: primeiraBandeira,
           upsell:          true,
-          venda_origem_id: vendaPrincipal.id,
+          venda_origem_id: primeiraVendaId,
         });
       }
 
       if (temUpsell && upsell.servico.trim() && upsell.valor) {
         await api.criarVenda({
-          ...payload,
+          ...basePayload,
           servico:         upsell.servico.trim(),
           valor:           parseFloat(upsell.valor),
-          forma_pagamento: upsell.forma_pagamento,
+          qtd_clientes:    1,
           desconto:        0,
+          forma_pagamento: primeiraForma,
+          bandeira_cartao: primeiraBandeira,
           upsell:          true,
-          venda_origem_id: vendaPrincipal.id,
+          venda_origem_id: primeiraVendaId,
         });
       }
 
-      setSucesso(vendaPrincipal);
+      setSucesso({ valor: totalBruto, servico: form.servico });
       setTemUpsell(false);
       setUpsell(UPSELL_INICIAL);
+      setPagamentos([{ forma: 'dinheiro', valor: '', bandeira: '' }]);
       setForm(f => ({ ...FORM_INICIAL, profissional_id: f.profissional_id, data: f.data }));
+
     } catch (err) {
       setErro(err.message);
     } finally {
@@ -231,28 +307,20 @@ export default function RegistroVenda() {
     }
   }
 
-  return (
-    <main className="max-w-md mx-auto px-4 pb-12 pt-6 animate-fade-in">
-      {/* Cabeçalho */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gold/10 border border-gold-dark/40 mb-3 shadow-gold-sm">
-          <Scissors size={22} className="text-gold" strokeWidth={1.5} />
-        </div>
-        <h1 className="font-serif font-bold text-xl text-gold">Registro de Venda</h1>
-        <p className="text-[11px] text-gold-muted uppercase tracking-widest mt-1">
-          Unidade {user?.unidade ?? 'Mutinga'}
-        </p>
-      </div>
+  const statusPagamento = Math.abs(restante) < 0.01
+    ? { label: '✓ Quitado', cor: 'text-emerald-400' }
+    : restante > 0
+      ? { label: `Falta ${fmt(restante)}`, cor: 'text-amber-400' }
+      : { label: `Excede ${fmt(Math.abs(restante))}`, cor: 'text-red-400' };
 
+  return (
+    <>
       {sucesso && (
         <div className="mb-5 p-4 rounded-xl bg-emerald-900/20 border border-emerald-700/40 text-emerald-400">
           <div className="flex items-center gap-2 font-semibold text-sm mb-1">
             <CheckCircle size={15} /> Venda registrada!
           </div>
-          <p className="text-xs text-emerald-300/70">
-            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sucesso.valor)}
-            {' — '}{sucesso.servico}
-          </p>
+          <p className="text-xs text-emerald-300/70">{fmt(sucesso.valor)} — {sucesso.servico}</p>
         </div>
       )}
 
@@ -273,6 +341,21 @@ export default function RegistroVenda() {
           </select>
         </div>
 
+        {/* Nome do Cliente */}
+        <div>
+          <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Nome do cliente *</label>
+          <input
+            type="text" name="nome_cliente" value={form.nome_cliente} onChange={onChange}
+            placeholder="Ex.: João Silva" className="input-dark w-full"
+            required
+            pattern="[A-Za-zÀ-ÿ\s'\-]+"
+            title="Somente letras e espaços"
+            onKeyDown={e => {
+              if (/[0-9]/.test(e.key)) e.preventDefault();
+            }}
+          />
+        </div>
+
         {/* Serviço */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Serviço *</label>
@@ -287,22 +370,25 @@ export default function RegistroVenda() {
           />
         </div>
 
-        {/* Valor + Pagamento */}
+        {/* Qtd. de Clientes — logo após o serviço */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor (R$) *</label>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Qtd. de Clientes <span className="normal-case text-gold-muted/50">(ex: pai e filho)</span>
+            </label>
+            <input type="number" name="qtd_clientes" value={form.qtd_clientes} onChange={onChange}
+              min="1" step="1" className="input-dark w-full" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor por cliente (R$) *</label>
             <input
               type="number" name="valor" value={form.valor} onChange={onChange} required
               min="0" step="0.01" placeholder="0,00" className="input-dark w-full"
             />
           </div>
-          <div>
-            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento *</label>
-            <select name="forma_pagamento" value={form.forma_pagamento} onChange={onChange} className="input-dark w-full">
-              {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-          </div>
         </div>
+
+        <div className="h-px bg-surface-border" />
 
         {/* Produto */}
         <div>
@@ -311,62 +397,34 @@ export default function RegistroVenda() {
           </label>
           <CatalogoAutocomplete
             value={form.produto}
-            onChange={v => setForm(f => ({ ...f, produto: v, ...(v === '' ? { produto_valor: '' } : {}) }))}
+            onChange={v => setForm(f => ({ ...f, produto: v, ...(v === '' ? { produto_valor: '', produto_qtd: 1 } : {}) }))}
             onSelect={selecionarProduto}
             catalogo={catalogoProdutos}
             placeholder="Ex.: Pomada Matt"
           />
         </div>
 
-        {/* Valor e pagamento do produto — aparece ao selecionar */}
         {form.produto.trim() && (
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor produto (R$)</label>
-              <input
-                type="number" name="produto_valor" value={form.produto_valor} onChange={onChange}
-                min="0" step="0.01" placeholder="0,00" className="input-dark w-full"
-              />
+              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Qtd. do produto</label>
+              <input type="number" name="produto_qtd" value={form.produto_qtd} onChange={onChange}
+                min="1" step="1" className="input-dark w-full" />
             </div>
             <div>
-              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento produto</label>
-              <select name="produto_forma_pagamento" value={form.produto_forma_pagamento} onChange={onChange} className="input-dark w-full">
-                {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
+              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor unitário (R$)</label>
+              <input type="number" name="produto_valor" value={form.produto_valor} onChange={onChange}
+                min="0" step="0.01" placeholder="0,00" className="input-dark w-full" />
             </div>
           </div>
         )}
 
-        {/* Qtd Clientes + Total */}
-        <div className="space-y-2">
-          <div>
-            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
-              Qtd. de Clientes <span className="normal-case text-gold-muted/50">(ex: pai e filho)</span>
-            </label>
-            <input
-              type="number" name="qtd_clientes" value={form.qtd_clientes} onChange={onChange}
-              min="1" step="1" className="input-dark w-24"
-            />
-          </div>
-          {form.valor && (
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-gold/10 border border-gold-dark/30">
-              <span className="text-[11px] text-gold-muted uppercase tracking-wider">Total a pagar</span>
-              <span className="text-gold font-bold text-base">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                  Math.max(0, (parseFloat(form.valor) || 0) * (parseInt(form.qtd_clientes) || 1) - (parseFloat(form.desconto) || 0))
-                )}
-              </span>
-            </div>
-          )}
-        </div>
+        <div className="h-px bg-surface-border" />
 
-        {/* Serviço adicional (Upsell) */}
+        {/* Upsell */}
         <div className="border border-surface-border rounded-xl">
-          <button
-            type="button"
-            onClick={() => setTemUpsell(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] text-gold-muted uppercase tracking-wider hover:text-gold transition-colors"
-          >
+          <button type="button" onClick={() => setTemUpsell(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-[11px] text-gold-muted uppercase tracking-wider hover:text-gold transition-colors">
             <span>+ Serviço adicional (upsell)</span>
             <ChevronDown size={13} className={`transition-transform ${temUpsell ? 'rotate-180' : ''}`} />
           </button>
@@ -374,29 +432,15 @@ export default function RegistroVenda() {
             <div className="px-4 pb-4 pt-1 space-y-3 border-t border-surface-border">
               <div>
                 <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Serviço extra *</label>
-                <CatalogoAutocomplete
-                  value={upsell.servico}
+                <CatalogoAutocomplete value={upsell.servico}
                   onChange={v => setUpsell(u => ({ ...u, servico: v }))}
-                  onSelect={selecionarUpsell}
-                  catalogo={catalogoServicos}
-                  placeholder="Ex.: Sobrancelha"
-                  grupos
-                />
+                  onSelect={selecionarUpsell} catalogo={catalogoServicos}
+                  placeholder="Ex.: Sobrancelha" grupos />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor (R$) *</label>
-                  <input
-                    type="number" name="valor" value={upsell.valor} onChange={onChangeUpsell}
-                    min="0" step="0.01" placeholder="0,00" className="input-dark w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento</label>
-                  <select name="forma_pagamento" value={upsell.forma_pagamento} onChange={onChangeUpsell} className="input-dark w-full">
-                    {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor (R$) *</label>
+                <input type="number" name="valor" value={upsell.valor} onChange={onChangeUpsell}
+                  min="0" step="0.01" placeholder="0,00" className="input-dark w-full" />
               </div>
             </div>
           )}
@@ -405,49 +449,585 @@ export default function RegistroVenda() {
         {/* Origem do cliente */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Origem do cliente</label>
-          <select name="tipo_cliente" value={form.tipo_cliente} onChange={onChange} className="input-dark w-full">
-            {TIPOS_CLIENTE.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+          <div className="flex flex-wrap gap-2">
+            {ORIGENS_UNIFICADAS.map(op => {
+              const ativo = form.origens.includes(op.value);
+              return (
+                <button
+                  key={op.value}
+                  type="button"
+                  onClick={() => setForm(f => ({
+                    ...f,
+                    origens: ativo
+                      ? f.origens.filter(o => o !== op.value)
+                      : [...f.origens, op.value],
+                  }))}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    ativo
+                      ? 'bg-gold text-onix border-gold'
+                      : 'bg-transparent text-gold-muted border-surface-border hover:border-gold/50 hover:text-gold'
+                  }`}
+                >
+                  {op.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Desconto — fixo em R$ */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
             Desconto (R$) <span className="normal-case text-gold-muted/50">(opcional)</span>
           </label>
-          <input
-            type="number" name="desconto" value={form.desconto} onChange={onChange}
-            min="0" step="0.01" placeholder="0,00" className="input-dark w-36"
-          />
+          <input type="number" name="desconto" value={form.desconto} onChange={onChange}
+            min="0" step="0.01" placeholder="0,00" className="input-dark w-36" />
         </div>
 
-        {/* Data */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Data *</label>
           <input type="date" name="data" value={form.data} onChange={onChange} required className="input-dark w-full" />
         </div>
 
-        {/* Observação */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
             Observação <span className="normal-case text-gold-muted/50">(opcional)</span>
           </label>
-          <input
-            type="text" name="observacao" value={form.observacao} onChange={onChange}
-            placeholder="Observações gerais…" className="input-dark w-full"
-          />
+          <input type="text" name="observacao" value={form.observacao} onChange={onChange}
+            placeholder="Observações gerais…" className="input-dark w-full" />
         </div>
 
-        <button
-          type="submit" disabled={enviando}
-          className="btn-gold w-full justify-center py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        {/* ─── RESUMO DO PEDIDO ──────────────────────────────────────────────── */}
+        {totalBruto > 0 && (
+          <div className="rounded-xl border border-gold-dark/40 bg-gold/5 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-gold-dark/30">
+              <p className="text-[11px] text-gold-muted uppercase tracking-wider font-semibold">Resumo do Pedido</p>
+            </div>
+            <div className="px-4 py-3 space-y-2 text-xs">
+              {totalServico > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gold-muted">
+                    {form.servico || 'Serviço'}
+                    {parseInt(form.qtd_clientes) > 1 ? ` × ${form.qtd_clientes}` : ''}
+                  </span>
+                  <span className="text-gold-light tabular-nums">{fmt(totalServico)}</span>
+                </div>
+              )}
+              {totalProduto > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gold-muted">
+                    {form.produto}
+                    {parseInt(form.produto_qtd) > 1 ? ` × ${form.produto_qtd}` : ''}
+                  </span>
+                  <span className="text-gold-light tabular-nums">{fmt(totalProduto)}</span>
+                </div>
+              )}
+              {totalUpsell > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gold-muted">{upsell.servico}</span>
+                  <span className="text-gold-light tabular-nums">{fmt(totalUpsell)}</span>
+                </div>
+              )}
+              {desconto > 0 && (
+                <div className="flex justify-between text-amber-400">
+                  <span>Desconto</span>
+                  <span className="tabular-nums">− {fmt(desconto)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2.5 mt-1 border-t border-gold-dark/30">
+                <span className="text-[11px] text-gold-muted uppercase tracking-wider font-semibold">Total Bruto</span>
+                <span className="font-bold text-gold text-xl tabular-nums">{fmt(totalBruto)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── FORMA DE PAGAMENTO ─────────────────────────────────────────────── */}
+        <div className="rounded-xl border border-surface-border overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-surface-border bg-surface-hover/30 flex items-center justify-between">
+            <p className="text-[11px] text-gold-muted uppercase tracking-wider font-semibold">Forma de Pagamento</p>
+            {pagamentos.length > 1 && (
+              <span className={`text-[11px] font-semibold ${statusPagamento.cor}`}>
+                {statusPagamento.label}
+              </span>
+            )}
+          </div>
+
+          <div className="p-4 space-y-3">
+            {pagamentos.map((p, i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex gap-2 items-end">
+                  {/* Método */}
+                  <div className="flex-1 min-w-0">
+                    {i === 0 && (
+                      <label className="block text-[10px] text-gold-muted uppercase tracking-wider mb-1">Método</label>
+                    )}
+                    <select
+                      value={p.forma}
+                      onChange={e => updatePagamento(i, 'forma', e.target.value)}
+                      className="input-dark w-full text-sm"
+                    >
+                      {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Valor */}
+                  <div className="w-28 shrink-0">
+                    {i === 0 && (
+                      <label className="block text-[10px] text-gold-muted uppercase tracking-wider mb-1">Valor (R$)</label>
+                    )}
+                    <input
+                      type="number"
+                      value={p.valor}
+                      onChange={e => updatePagamento(i, 'valor', e.target.value)}
+                      min="0" step="0.01" placeholder="0,00"
+                      className={`input-dark w-full text-sm ${pagamentos.length === 1 ? 'opacity-60 cursor-default' : ''}`}
+                      readOnly={pagamentos.length === 1}
+                    />
+                  </div>
+
+                  {/* Remover */}
+                  {pagamentos.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removePagamento(i)}
+                      className="text-red-400/50 hover:text-red-400 transition-colors pb-1 shrink-0"
+                      title="Remover método"
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Bandeira (se cartão) */}
+                {(p.forma === 'credito' || p.forma === 'debito') && (
+                  <select
+                    value={p.bandeira}
+                    onChange={e => updatePagamento(i, 'bandeira', e.target.value)}
+                    className="input-dark w-full text-sm"
+                  >
+                    <option value="">Bandeira do cartão (opcional)</option>
+                    {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
+
+                {/* Taxa PagBank por método */}
+                {(() => {
+                  const taxa = TAXAS_PAGBANK[p.forma] ?? 0;
+                  const val  = parseFloat(p.valor) || 0;
+                  if (taxa > 0 && val > 0) {
+                    return (
+                      <div className="flex justify-between text-[10px] text-orange-400/70 px-1">
+                        <span>Taxa PagBank ({(taxa * 100).toFixed(2)}%)</span>
+                        <span>− {fmt(val * taxa)} → líquido {fmt(val * (1 - taxa))}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            ))}
+
+            {/* Dividir pagamento */}
+            <button
+              type="button"
+              onClick={addPagamento}
+              className="w-full py-2.5 text-[11px] text-gold-muted uppercase tracking-wider border border-dashed border-surface-border rounded-lg hover:border-gold/50 hover:text-gold transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Plus size={11} /> Dividir em outro método
+            </button>
+
+            {/* Indicador de quanto falta/resta quando há split */}
+            {pagamentos.length > 1 && Math.abs(restante) > 0.01 && (
+              <div className={`flex justify-between text-xs px-1 ${restante > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                <span>{restante > 0 ? 'Ainda a pagar:' : 'Excede o total em:'}</span>
+                <span className="font-semibold tabular-nums">{fmt(Math.abs(restante))}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button type="submit" disabled={enviando}
+          className="btn-gold w-full justify-center py-3 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
           {enviando
             ? <span className="w-4 h-4 border-2 border-onix/30 border-t-onix rounded-full animate-spin" />
             : <Plus size={15} />}
           {enviando ? 'Registrando…' : 'Registrar Venda'}
         </button>
       </form>
+    </>
+  );
+}
+
+// ─── Aba: Combos (Recorrência) ───────────────────────────────────────────────
+
+const COMBO_FORM_INICIAL = {
+  forma_pagamento: 'credito',
+  bandeira_cartao: '',
+  novo_servico:    '',
+  novo_valor:      '',
+};
+
+function AbaCombo({ barbeiros, catalogo, user }) {
+  const [busca,          setBusca]          = useState('');
+  const [buscando,       setBuscando]       = useState(false);
+  const [combo,          setCombo]          = useState(undefined);
+  const [alterarPlano,   setAlterarPlano]   = useState(false);
+  const [comboForm,      setComboForm]      = useState(COMBO_FORM_INICIAL);
+  const [enviando,       setEnviando]       = useState(false);
+  const [sucesso,        setSucesso]        = useState(null);
+  const [erro,           setErro]           = useState(null);
+
+  const planos = catalogo.filter(i =>
+    i.categoria === 'combo' || i.nome.toLowerCase().includes('combo novo')
+  );
+
+  async function buscarCombo(e) {
+    e.preventDefault();
+    if (!busca.trim() || busca.trim().length < 2) return;
+    setBuscando(true);
+    setCombo(undefined);
+    setErro(null);
+    setSucesso(null);
+    setAlterarPlano(false);
+    try {
+      const resultado = await api.buscarCombo({ nome: busca.trim() });
+      setCombo(resultado);
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  function onChangeForm(e) {
+    const { name, value } = e.target;
+    if (name === 'novo_servico') {
+      const plano = planos.find(p => p.nome === value);
+      setComboForm(f => ({
+        ...f,
+        novo_servico: value,
+        novo_valor:   plano ? parseFloat(plano.preco_venda).toFixed(2) : '',
+      }));
+    } else {
+      setComboForm(f => ({ ...f, [name]: value }));
+    }
+  }
+
+  async function registrarUso(e) {
+    e.preventDefault();
+    if (!combo?.id) return;
+    setEnviando(true);
+    setErro(null);
+    try {
+      const payload = {
+        combo_id:        combo.id,
+        servico:         combo.servicos,
+        valor:           parseFloat(combo.valor),
+        forma_pagamento: comboForm.forma_pagamento,
+        bandeira_cartao: comboForm.bandeira_cartao || undefined,
+        alterar_plano:   alterarPlano,
+        novo_servico:    alterarPlano ? comboForm.novo_servico : undefined,
+        novo_valor:      alterarPlano && comboForm.novo_valor ? parseFloat(comboForm.novo_valor) : undefined,
+      };
+      const result = await api.registrarUsoCombo(payload);
+      setSucesso({ tipo: 'uso', venda: result.venda, combo });
+      setBusca('');
+      setCombo(undefined);
+      setAlterarPlano(false);
+      setComboForm(COMBO_FORM_INICIAL);
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function ativarNovoCombo(e) {
+    e.preventDefault();
+    if (!comboForm.novo_servico) { setErro('Selecione um plano de combo.'); return; }
+    setEnviando(true);
+    setErro(null);
+    try {
+      const planoSelecionado = planos.find(p => p.nome === comboForm.novo_servico);
+      const valor = comboForm.novo_valor ? parseFloat(comboForm.novo_valor)
+                                         : parseFloat(planoSelecionado?.preco_venda ?? 0);
+      const payload = {
+        cliente_nome:    busca.trim(),
+        servicos:        comboForm.novo_servico,
+        valor,
+        forma_pagamento: comboForm.forma_pagamento,
+        bandeira_cartao: comboForm.bandeira_cartao || undefined,
+      };
+      const result = await api.ativarCombo(payload);
+      setSucesso({ tipo: 'ativacao', venda: result.venda, combo: result.combo });
+      setBusca('');
+      setCombo(undefined);
+      setComboForm(COMBO_FORM_INICIAL);
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const hoje = hojeISO();
+  const comboAtivo   = combo && combo.data_vencimento >= hoje;
+  const comboVencido = combo && combo.data_vencimento < hoje;
+
+  return (
+    <div className="space-y-4">
+      {sucesso && (
+        <div className="p-4 rounded-xl bg-emerald-900/20 border border-emerald-700/40 text-emerald-400">
+          <div className="flex items-center gap-2 font-semibold text-sm mb-1">
+            <CheckCircle size={15} />
+            {sucesso.tipo === 'uso' ? 'Uso registrado!' : 'Combo ativado!'}
+          </div>
+          <p className="text-xs text-emerald-300/70">
+            {sucesso.tipo === 'uso'
+              ? `Atendimento de ${sucesso.combo?.cliente_nome} registrado — ${fmt(sucesso.venda?.valor)}`
+              : `${sucesso.combo?.cliente_nome} — Validade: ${fmtDataBR(sucesso.combo?.data_vencimento)}`
+            }
+          </p>
+        </div>
+      )}
+
+      {erro && (
+        <div className="flex items-center gap-2 p-4 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-sm">
+          <AlertCircle size={15} className="shrink-0" /> {erro}
+        </div>
+      )}
+
+      <div className="card-premium p-5 space-y-4">
+        <div>
+          <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Buscar cliente pelo nome *</label>
+          <form onSubmit={buscarCombo} className="flex gap-2">
+            <input
+              type="text"
+              value={busca}
+              onChange={e => { setBusca(e.target.value); setCombo(undefined); setSucesso(null); }}
+              placeholder="Ex.: João Silva"
+              className="input-dark flex-1"
+              required
+              minLength={2}
+            />
+            <button type="submit" disabled={buscando || busca.trim().length < 2}
+              className="btn-outline-gold px-3 disabled:opacity-50 shrink-0">
+              {buscando
+                ? <RefreshCw size={14} className="animate-spin" />
+                : <Search size={14} />}
+            </button>
+          </form>
+        </div>
+
+        {comboAtivo && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/10 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                <CheckCircle size={14} /> Combo ativo — {combo.cliente_nome}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-gold-muted">Plano</span>
+                  <p className="text-gold-light mt-0.5">{combo.servicos}</p>
+                </div>
+                <div>
+                  <span className="text-gold-muted">Valor</span>
+                  <p className="text-gold font-semibold mt-0.5">{fmt(combo.valor)}</p>
+                </div>
+                <div>
+                  <span className="text-gold-muted">Início</span>
+                  <p className="text-gold-light mt-0.5">{fmtDataBR(combo.data_aquisicao)}</p>
+                </div>
+                <div>
+                  <span className="text-gold-muted">Validade</span>
+                  <p className="text-gold-light mt-0.5">{fmtDataBR(combo.data_vencimento)}</p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={registrarUso} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento</label>
+                  <select name="forma_pagamento" value={comboForm.forma_pagamento} onChange={onChangeForm} className="input-dark w-full">
+                    {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                </div>
+                {(comboForm.forma_pagamento === 'credito' || comboForm.forma_pagamento === 'debito') && (
+                  <div>
+                    <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Bandeira</label>
+                    <select name="bandeira_cartao" value={comboForm.bandeira_cartao} onChange={onChangeForm} className="input-dark w-full">
+                      <option value="">Selecione...</option>
+                      {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={alterarPlano}
+                  onChange={e => setAlterarPlano(e.target.checked)}
+                  className="w-4 h-4 accent-gold"
+                />
+                <span className="text-sm text-gold-light">Deseja alterar o plano para o próximo mês?</span>
+              </label>
+
+              {alterarPlano && (
+                <div className="rounded-xl border border-gold-dark/30 bg-gold/5 p-4 space-y-3">
+                  <p className="text-[11px] text-gold-muted uppercase tracking-wider">Novo plano</p>
+                  <div>
+                    <select name="novo_servico" value={comboForm.novo_servico} onChange={onChangeForm} className="input-dark w-full" required={alterarPlano}>
+                      <option value="">Selecione o novo plano</option>
+                      {planos.map(p => (
+                        <option key={p.id} value={p.nome}>{p.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor</label>
+                    <input type="number" name="novo_valor" value={comboForm.novo_valor} onChange={onChangeForm}
+                      min="0" step="0.01" placeholder="0,00" className="input-dark w-36" />
+                  </div>
+                  <p className="text-[10px] text-gold-muted/70">
+                    Vigência atual: até {fmtDataBR(combo.data_vencimento)} → novo ciclo até {fmtDataBR(addDias(combo.data_vencimento, 30))}
+                  </p>
+                </div>
+              )}
+
+              <button type="submit" disabled={enviando}
+                className="btn-gold w-full justify-center py-2.5 disabled:opacity-50">
+                {enviando
+                  ? <span className="w-4 h-4 border-2 border-onix/30 border-t-onix rounded-full animate-spin" />
+                  : <CheckCircle size={15} />}
+                {enviando ? 'Registrando…' : 'Registrar Uso'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {comboVencido && (
+          <div className="p-3 rounded-xl border border-amber-700/40 bg-amber-900/10 text-amber-400 text-sm">
+            <p className="font-semibold">Combo vencido — {combo.cliente_nome}</p>
+            <p className="text-xs mt-0.5">Venceu em {fmtDataBR(combo.data_vencimento)}. Renove abaixo ou na tela de Combos.</p>
+          </div>
+        )}
+
+        {combo === null && busca.trim().length >= 2 && (
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl border border-gold-dark/30 bg-gold/5 text-gold-muted text-sm">
+              <p className="font-semibold text-gold-light">Novo assinante</p>
+              <p className="text-xs mt-0.5">Nenhum combo encontrado para "{busca}". Preencha abaixo para ativar.</p>
+            </div>
+
+            <form onSubmit={ativarNovoCombo} className="space-y-3">
+              <div>
+                <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Plano de combo *</label>
+                <select name="novo_servico" value={comboForm.novo_servico} onChange={onChangeForm} required className="input-dark w-full">
+                  <option value="">Selecione o plano</option>
+                  {planos.map(p => (
+                    <option key={p.id} value={p.nome}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor</label>
+                <input type="number" name="novo_valor" value={comboForm.novo_valor} onChange={onChangeForm}
+                  min="0" step="0.01" placeholder="0,00" className="input-dark w-36" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento *</label>
+                  <select name="forma_pagamento" value={comboForm.forma_pagamento} onChange={onChangeForm} className="input-dark w-full">
+                    {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                </div>
+                {(comboForm.forma_pagamento === 'credito' || comboForm.forma_pagamento === 'debito') && (
+                  <div>
+                    <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Bandeira</label>
+                    <select name="bandeira_cartao" value={comboForm.bandeira_cartao} onChange={onChangeForm} className="input-dark w-full">
+                      <option value="">Selecione...</option>
+                      {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {comboForm.novo_servico && (
+                <div className="text-[10px] text-gold-muted/70 px-1">
+                  Vigência: {fmtDataBR(hoje)} → {fmtDataBR(addDias(hoje, 30))} (30 dias)
+                </div>
+              )}
+
+              <button type="submit" disabled={enviando}
+                className="btn-gold w-full justify-center py-2.5 disabled:opacity-50">
+                {enviando
+                  ? <span className="w-4 h-4 border-2 border-onix/30 border-t-onix rounded-full animate-spin" />
+                  : <Tag size={15} />}
+                {enviando ? 'Ativando…' : 'Vender e Ativar Combo'}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
+
+export default function RegistroVenda() {
+  const { user } = useAuth();
+  const [aba,       setAba]       = useState('venda');
+  const [barbeiros, setBarbeiros] = useState([]);
+  const [catalogo,  setCatalogo]  = useState([]);
+
+  useEffect(() => {
+    if (user?.unidade === 'tambore') {
+      api.profissionais({ unidade: 'tambore' }).then(setBarbeiros).catch(() => {});
+    } else {
+      api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
+    }
+    const unidade = user?.unidade ?? 'mutinga';
+    api.catalogo({ unidade }).then(d => setCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [user?.unidade]);
+
+  return (
+    <main className="max-w-md mx-auto px-4 pb-12 pt-6 animate-fade-in">
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gold/10 border border-gold-dark/40 mb-3 shadow-gold-sm">
+          <Scissors size={22} className="text-gold" strokeWidth={1.5} />
+        </div>
+        <h1 className="font-serif font-bold text-xl text-gold">Registro</h1>
+        <p className="text-[11px] text-gold-muted uppercase tracking-widest mt-1">
+          Unidade {user?.unidade ?? 'Mutinga'}
+        </p>
+      </div>
+
+      <div className="flex mb-5 rounded-xl border border-surface-border overflow-hidden">
+        {[
+          { key: 'venda', label: 'Venda' },
+          { key: 'combo', label: 'Combos' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setAba(key)}
+            className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+              aba === key
+                ? 'bg-gold text-onix'
+                : 'bg-transparent text-gold-muted hover:text-gold'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'venda' && <AbaVenda barbeiros={barbeiros} catalogo={catalogo} user={user} />}
+      {aba === 'combo' && <AbaCombo barbeiros={barbeiros} catalogo={catalogo} user={user} />}
     </main>
   );
 }

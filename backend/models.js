@@ -65,6 +65,15 @@ const ALTER_VENDAS_NOVOS_CAMPOS = `
     ADD COLUMN IF NOT EXISTS qtd_clientes    SMALLINT       NOT NULL DEFAULT 1;
 `;
 
+// Campos de inteligência financeira e rastreamento de cliente
+const ALTER_VENDAS_INTEL = `
+  ALTER TABLE vendas
+    ADD COLUMN IF NOT EXISTS nome_cliente    VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS origem_cliente  VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS bandeira_cartao VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS valor_liquido   NUMERIC(10,2);
+`;
+
 // Novo campo em gastos
 const ALTER_GASTOS_VALOR_PREVISTO = `
   ALTER TABLE gastos
@@ -471,6 +480,7 @@ async function runMigrations() {
     await query(ALTER_USER_ROLE_OPERADOR);
     await query(ALTER_USUARIOS_UNIDADE_ACESSO);
     await query(ALTER_VENDAS_NOVOS_CAMPOS);
+    await query(ALTER_VENDAS_INTEL);
     await query(ALTER_GASTOS_VALOR_PREVISTO);
     await query(CREATE_COMBOS);
     await query(CREATE_CLIENTES);
@@ -544,14 +554,17 @@ const Venda = {
     );
   },
   create: ({ unidade, profissional_id, servico, valor, comissao, forma_pagamento, data, observacao, importado,
-             desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes }) =>
+             desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
+             nome_cliente, origem_cliente, bandeira_cartao, valor_liquido }) =>
     query(
       `INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, forma_pagamento, data, observacao, importado,
-                           desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+                           desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
+                           nome_cliente, origem_cliente, bandeira_cartao, valor_liquido)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
       [unidade, profissional_id, servico, valor, comissao ?? 0, forma_pagamento ?? 'dinheiro', data,
        observacao ?? null, importado ?? false,
-       desconto ?? 0, tipo_cliente ?? 'agendado', upsell ?? false, venda_origem_id ?? null, qtd_clientes ?? 1]
+       desconto ?? 0, tipo_cliente ?? 'agendado', upsell ?? false, venda_origem_id ?? null, qtd_clientes ?? 1,
+       nome_cliente ?? null, origem_cliente ?? null, bandeira_cartao ?? null, valor_liquido ?? null]
     ),
   bulkCreate: async (vendas) => {
     const client = await require('./db').getClient();

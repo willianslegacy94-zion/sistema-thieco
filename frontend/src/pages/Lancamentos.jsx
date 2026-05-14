@@ -34,6 +34,8 @@ function hojeISO() {
 
 // ─── Modal de Edição ──────────────────────────────────────────────────────────
 
+const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Outra'];
+
 function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalvar }) {
   const [form, setForm] = useState({
     profissional_id: venda.profissional_id ?? '',
@@ -45,6 +47,8 @@ function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalva
     qtd_clientes:    venda.qtd_clientes ?? 1,
     data:            venda.data ? String(venda.data).slice(0, 10) : hojeISO(),
     observacao:      venda.observacao ?? '',
+    bandeira_cartao: venda.bandeira_cartao ?? '',
+    nome_cliente:    venda.nome_cliente ?? '',
   });
 
   function onChange(e) {
@@ -64,6 +68,8 @@ function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalva
       qtd_clientes:    parseInt(form.qtd_clientes) || 1,
       data:            form.data,
       observacao:      form.observacao.trim() || null,
+      bandeira_cartao: form.bandeira_cartao || null,
+      nome_cliente:    form.nome_cliente.trim() || null,
     };
     onSalvar(venda.id, payload);
   }
@@ -125,6 +131,30 @@ function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalva
               </select>
             </div>
           </div>
+
+          {/* Nome do cliente */}
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Nome do cliente <span className="normal-case text-gold-muted/50">(opcional)</span>
+            </label>
+            <input
+              type="text" name="nome_cliente" value={form.nome_cliente} onChange={onChange}
+              placeholder="Ex.: João Silva" className="input-dark w-full"
+            />
+          </div>
+
+          {/* Bandeira do cartão (visível apenas para crédito/débito) */}
+          {(form.forma_pagamento === 'credito' || form.forma_pagamento === 'debito') && (
+            <div>
+              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+                Bandeira <span className="normal-case text-gold-muted/50">(opcional)</span>
+              </label>
+              <select name="bandeira_cartao" value={form.bandeira_cartao} onChange={onChange} className="input-dark w-full">
+                <option value="">Selecione a bandeira</option>
+                {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Desconto + Qtd */}
           <div className="grid grid-cols-2 gap-3">
@@ -351,6 +381,9 @@ export default function Lancamentos() {
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-900/30 text-purple-400 border border-purple-700/30">upsell</span>
                     )}
                   </div>
+                  {v.nome_cliente && (
+                    <p className="text-[10px] text-gold-muted/70 mt-0.5">{v.nome_cliente}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs text-gold-muted">{String(v.data).slice(0, 10)}</span>
                     {v.profissional_nome && (
@@ -358,6 +391,7 @@ export default function Lancamentos() {
                     )}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${BADGE_PGTO[v.forma_pagamento] ?? 'bg-surface-border/30 text-gold-muted border-surface-border'}`}>
                       {FORMAS_PAGAMENTO.find(f => f.value === v.forma_pagamento)?.label ?? v.forma_pagamento}
+                      {v.bandeira_cartao ? ` · ${v.bandeira_cartao}` : ''}
                     </span>
                     {isAdmin && (
                       <span className="text-[10px] text-gold-muted/50 capitalize">{v.unidade}</span>

@@ -69,6 +69,12 @@ export const api = {
     http('/combos', { method: 'POST', body: JSON.stringify(body) }),
   atualizarCombo: (id, body) =>
     http(`/combos/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  buscarCombo: (params = {}) =>
+    http(`/combos/buscar?${new URLSearchParams(params)}`),
+  registrarUsoCombo: (body) =>
+    http('/combos/uso', { method: 'POST', body: JSON.stringify(body) }),
+  ativarCombo: (body) =>
+    http('/combos/ativar', { method: 'POST', body: JSON.stringify(body) }),
 
   // ── Clientes ──────────────────────────────────────────────────────────────
   clientes: (params = {}) =>

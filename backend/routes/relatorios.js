@@ -8,19 +8,40 @@
  */
 
 const { Router } = require('express');
-const { query: qv, validationResult } = require('express-validator');
+const { query: qv } = require('express-validator');
 const { query } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 
+// Valida datas opcionalmente — em vez de 422, faz fallback para o mês atual
 const periodoValidators = [
-  qv('inicio').notEmpty().isDate().withMessage('inicio obrigatório (YYYY-MM-DD)'),
-  qv('fim').notEmpty().isDate().withMessage('fim obrigatório (YYYY-MM-DD)'),
+  qv('inicio').optional().isDate(),
+  qv('fim').optional().isDate(),
   qv('unidade').optional().isIn(['tambore', 'mutinga']),
 ];
 
 function toNum(v) { return parseFloat(v ?? 0); }
+
+// Retorna datas válidas ou o período do mês atual como fallback
+function resolverPeriodo(params) {
+  const agora = new Date();
+  const ini = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`;
+  const fim = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  function isValidDate(s) {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const d = new Date(s + 'T00:00:00');
+    if (isNaN(d.getTime())) return false;
+    return d.toISOString().slice(0, 10) === s;
+  }
+
+  return {
+    inicio:  isValidDate(params.inicio) ? params.inicio : ini,
+    fim:     isValidDate(params.fim)    ? params.fim    : fim,
+    unidade: params.unidade ?? null,
+  };
+}
 
 // ─── Taxas de intermediação PagBank (maquininha) ──────────────────────────────
 // Fonte: app PagBank → Maquininhas → Taxas personalizadas (capturado em mai/2026)
@@ -41,10 +62,7 @@ END`;
 
 // ─── Fluxo de Caixa — admin ───────────────────────────────────────────────────
 router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
-
-  const { inicio, fim, unidade } = req.query;
+  const { inicio, fim, unidade } = resolverPeriodo(req.query);
   const unidadeFiltro = unidade ? `AND unidade = '${unidade}'` : '';
 
   try {
@@ -115,10 +133,7 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
 
 // ─── DRE — admin ─────────────────────────────────────────────────────────────
 router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
-
-  const { inicio, fim, unidade } = req.query;
+  const { inicio, fim, unidade } = resolverPeriodo(req.query);
   const unidadeFiltro = unidade ? `AND unidade = '${unidade}'` : '';
 
   try {
@@ -205,10 +220,7 @@ router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, re
 
 // ─── Comissões — todos (com mascaramento para barbeiros) ──────────────────────
 router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
-
-  const { inicio, fim, unidade } = req.query;
+  const { inicio, fim, unidade } = resolverPeriodo(req.query);
   const unidadeFiltro = unidade ? `AND v.unidade = '${unidade}'` : '';
 
   try {
@@ -260,10 +272,7 @@ router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
 
 // ─── Inteligência Financeira — admin ─────────────────────────────────────────
 router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
-
-  const { inicio, fim, unidade } = req.query;
+  const { inicio, fim, unidade } = resolverPeriodo(req.query);
   const uf  = unidade ? `AND unidade = '${unidade}'`   : '';
   const ufv = unidade ? `AND v.unidade = '${unidade}'` : '';
 
@@ -352,14 +361,11 @@ router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async
 
 // ─── Resumo Operador — operador ou admin ─────────────────────────────────────
 router.get('/resumo-operador', authenticate, periodoValidators, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
-
   const { role, unidade: unidadeJWT } = req.user;
   if (role !== 'admin' && role !== 'operador')
     return res.status(403).json({ erro: 'Acesso negado.' });
 
-  const { inicio, fim } = req.query;
+  const { inicio, fim } = resolverPeriodo(req.query);
   // Operador sempre vê apenas sua unidade; admin pode filtrar
   const unidade = role === 'operador' ? unidadeJWT : (req.query.unidade ?? null);
   const uf = unidade ? `AND unidade = '${unidade}'` : '';

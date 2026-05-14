@@ -6,9 +6,24 @@ const { query } = require('../db');
 
 const router = Router();
 
-const FORMAS_PAGAMENTO = ['dinheiro', 'pix', 'credito', 'debito', 'cortesia'];
-const UNIDADES_VALIDAS = ['tambore', 'mutinga'];
-const TIPOS_CLIENTE    = ['agendado', 'esporadico', 'primeira_vez'];
+const FORMAS_PAGAMENTO  = ['dinheiro', 'pix', 'credito', 'debito', 'cortesia'];
+const UNIDADES_VALIDAS  = ['tambore', 'mutinga'];
+const TIPOS_CLIENTE     = ['agendado', 'esporadico', 'primeira_vez'];
+const ORIGENS_CLIENTE   = ['whatsapp', 'indicacao', 'organico'];
+
+// Taxas PagBank para cálculo do valor líquido
+const TAXAS_PAGBANK = {
+  debito:   0.0119,
+  credito:  0.0349,
+  pix:      0,
+  dinheiro: 0,
+  cortesia: 0,
+};
+
+function calcularValorLiquido(valor, forma_pagamento) {
+  const taxa = TAXAS_PAGBANK[forma_pagamento] ?? 0;
+  return parseFloat((valor * (1 - taxa)).toFixed(2));
+}
 
 async function calcularComissao(profissional_id, valor) {
   if (!profissional_id) return 0;
@@ -62,6 +77,9 @@ router.post('/',
   body('upsell').optional().isBoolean(),
   body('venda_origem_id').optional().isInt(),
   body('qtd_clientes').optional().isInt({ min: 1 }),
+  body('nome_cliente').optional().trim(),
+  body('origem_cliente').optional().isIn(ORIGENS_CLIENTE),
+  body('bandeira_cartao').optional().trim(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
@@ -76,11 +94,14 @@ router.post('/',
       const {
         profissional_id, servico, valor, forma_pagamento, data, observacao,
         desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
+        nome_cliente, origem_cliente, bandeira_cartao,
       } = req.body;
 
       const comissao = req.body.comissao !== undefined
         ? parseFloat(req.body.comissao)
         : await calcularComissao(profissional_id, parseFloat(valor));
+
+      const valor_liquido = calcularValorLiquido(parseFloat(valor), forma_pagamento ?? 'dinheiro');
 
       const { rows } = await Venda.create({
         unidade, profissional_id: profissional_id ?? null,
@@ -90,6 +111,10 @@ router.post('/',
         upsell: upsell ?? false,
         venda_origem_id: venda_origem_id ?? null,
         qtd_clientes: qtd_clientes ?? 1,
+        nome_cliente: nome_cliente ?? null,
+        origem_cliente: origem_cliente ?? null,
+        bandeira_cartao: bandeira_cartao ?? null,
+        valor_liquido,
       });
       res.status(201).json(rows[0]);
     } catch (err) {
@@ -117,6 +142,9 @@ router.put('/:id',
   body('profissional_id').optional({ nullable: true }).isInt(),
   body('tipo_cliente').optional().isIn(TIPOS_CLIENTE),
   body('qtd_clientes').optional().isInt({ min: 1 }),
+  body('nome_cliente').optional().trim(),
+  body('origem_cliente').optional().isIn(ORIGENS_CLIENTE),
+  body('bandeira_cartao').optional().trim(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
@@ -129,7 +157,9 @@ router.put('/:id',
       if (req.user.role === 'operador' && venda.unidade !== req.user.unidade)
         return res.status(403).json({ erro: 'Sem permissão para editar esta venda.' });
 
-      const EDITAVEIS = ['servico', 'valor', 'forma_pagamento', 'desconto', 'observacao', 'data', 'profissional_id', 'tipo_cliente', 'qtd_clientes'];
+      const EDITAVEIS = ['servico', 'valor', 'forma_pagamento', 'desconto', 'observacao', 'data',
+                         'profissional_id', 'tipo_cliente', 'qtd_clientes',
+                         'nome_cliente', 'origem_cliente', 'bandeira_cartao'];
       const sets = [];
       const params = [];
 
@@ -144,6 +174,12 @@ router.put('/:id',
         const novoProfId   = req.body.profissional_id !== undefined ? req.body.profissional_id    : venda.profissional_id;
         const novaComissao = await calcularComissao(novoProfId, novoValor);
         sets.push(`comissao = $${params.push(novaComissao)}`);
+      }
+
+      if (req.body.valor !== undefined || req.body.forma_pagamento !== undefined) {
+        const novoValor = req.body.valor !== undefined ? parseFloat(req.body.valor) : parseFloat(venda.valor);
+        const novaForma = req.body.forma_pagamento ?? venda.forma_pagamento;
+        sets.push(`valor_liquido = $${params.push(calcularValorLiquido(novoValor, novaForma))}`);
       }
 
       if (sets.length === 0) return res.status(422).json({ erro: 'Nenhum campo para atualizar.' });

@@ -9,6 +9,11 @@ function fimMes() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
+function isValidDate(s) {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
 
 function gerarProjecao(vendasPorDia, inicio, fim) {
   const start = new Date(inicio + 'T00:00:00');
@@ -65,14 +70,16 @@ export function useInteligencia() {
     setLoading(true);
     setErro(null);
     try {
-      const params = { inicio: filtros.inicio, fim: filtros.fim };
+      const inicio = isValidDate(filtros.inicio) ? filtros.inicio : inicioMes();
+      const fim    = isValidDate(filtros.fim)    ? filtros.fim    : fimMes();
+      const params = { inicio, fim };
       if (filtros.unidade) params.unidade = filtros.unidade;
 
       const [intel, fluxo] = await Promise.all([
         api.inteligencia(params),
         api.fluxoCaixa(params),
       ]);
-      const projecao = gerarProjecao(intel.vendas_por_dia ?? [], filtros.inicio, filtros.fim);
+      const projecao = gerarProjecao(intel.vendas_por_dia ?? [], inicio, fim);
       setDados({ ...intel, projecao, entradas_por_dia: fluxo.entradas_por_dia, saidas_por_dia: fluxo.saidas_por_dia });
     } catch (e) {
       setErro(e.message);
