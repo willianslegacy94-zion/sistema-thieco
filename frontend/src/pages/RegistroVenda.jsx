@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Scissors, CheckCircle, AlertCircle, Plus, ChevronDown, Search, Tag, RefreshCw, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useInvalidarDashboard } from '../hooks/useBarbeariaData';
 
 const FORMAS_PAGAMENTO = [
   { value: 'dinheiro', label: 'Dinheiro' },
@@ -138,6 +139,8 @@ const FORM_INICIAL = {
 const UPSELL_INICIAL = { servico: '', valor: '' };
 
 function AbaVenda({ barbeiros, catalogo, user }) {
+  const invalidarDashboard = useInvalidarDashboard();
+
   const [form,       setForm]       = useState(FORM_INICIAL);
   const [upsell,     setUpsell]     = useState(UPSELL_INICIAL);
   const [temUpsell,  setTemUpsell]  = useState(false);
@@ -299,6 +302,7 @@ function AbaVenda({ barbeiros, catalogo, user }) {
       setUpsell(UPSELL_INICIAL);
       setPagamentos([{ forma: 'dinheiro', valor: '', bandeira: '' }]);
       setForm(f => ({ ...FORM_INICIAL, profissional_id: f.profissional_id, data: f.data }));
+      invalidarDashboard(); // atualiza Dashboard e Lançamentos imediatamente
 
     } catch (err) {
       setErro(err.message);
@@ -668,6 +672,8 @@ const COMBO_FORM_INICIAL = {
 };
 
 function AbaCombo({ barbeiros, catalogo, user }) {
+  const invalidarDashboard = useInvalidarDashboard();
+
   const [busca,          setBusca]          = useState('');
   const [buscando,       setBuscando]       = useState(false);
   const [combo,          setCombo]          = useState(undefined);
@@ -735,6 +741,7 @@ function AbaCombo({ barbeiros, catalogo, user }) {
       setCombo(undefined);
       setAlterarPlano(false);
       setComboForm(COMBO_FORM_INICIAL);
+      invalidarDashboard();
     } catch (err) {
       setErro(err.message);
     } finally {
@@ -763,6 +770,7 @@ function AbaCombo({ barbeiros, catalogo, user }) {
       setBusca('');
       setCombo(undefined);
       setComboForm(COMBO_FORM_INICIAL);
+      invalidarDashboard();
     } catch (err) {
       setErro(err.message);
     } finally {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SWRConfig } from 'swr';
 import { LayoutDashboard, Users, Lock, Brain, Receipt, TrendingUp, Tag, UserRound, Scissors, BarChart2, Trophy, Package, ClipboardList } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -194,8 +195,10 @@ function AppRoot() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoot />
-    </AuthProvider>
+    <SWRConfig value={{ revalidateOnMount: true }}>
+      <AuthProvider>
+        <AppRoot />
+      </AuthProvider>
+    </SWRConfig>
   );
 }

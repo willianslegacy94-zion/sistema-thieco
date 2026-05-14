@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api } from '../lib/api';
+import { useState, useMemo, useCallback } from 'react';
+import { useSWRConfig } from 'swr';
 import { useAuth } from '../contexts/AuthContext';
+import { useBarbeariaData, isValidDate } from './useBarbeariaData';
 
-function hoje() { return new Date().toISOString().slice(0, 10); }
+// ─── Helpers de data ──────────────────────────────────────────────────────────
+
 function inicioMes() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -11,17 +13,13 @@ function fimMes() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
-function isValidDate(s) {
-  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  if (parseInt(s, 10) < 2000) return false;
-  const d = new Date(s + 'T00:00:00');
-  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
-}
+
+// ─── Projeção de faturamento ──────────────────────────────────────────────────
 
 function gerarProjecao(entradasPorDia, inicio, fim) {
   const start = new Date(inicio + 'T00:00:00');
   const end   = new Date(fim   + 'T00:00:00');
-  const hoje  = new Date(); hoje.setHours(0,0,0,0);
+  const hoje  = new Date(); hoje.setHours(0, 0, 0, 0);
 
   const totalDias    = Math.round((end - start) / 86400000) + 1;
   const diasPassados = Math.min(Math.round((hoje - start) / 86400000) + 1, totalDias);
@@ -36,9 +34,8 @@ function gerarProjecao(entradasPorDia, inicio, fim) {
     const d = new Date(start); d.setDate(d.getDate() + i);
     const iso   = d.toISOString().slice(0, 10);
     const label = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    const isPassado = d <= hoje;
 
-    if (isPassado) {
+    if (d <= hoje) {
       somaReal += mapaReal[iso] ?? 0;
       dias.push({ label, real: somaReal, projecao: null });
     } else {
@@ -59,56 +56,42 @@ function gerarProjecao(entradasPorDia, inicio, fim) {
   return dias;
 }
 
+// ─── Hook público (interface idêntica à versão anterior) ──────────────────────
+
 export function useDashboard() {
   const { isAdmin, profissionalId } = useAuth();
+  const { mutate } = useSWRConfig();
 
   const [filtros, setFiltros] = useState({
-    inicio: inicioMes(),
-    fim:    fimMes(),
+    inicio:  inicioMes(),
+    fim:     fimMes(),
     unidade: '',
   });
 
-  const [dados,   setDados]   = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [erro,    setErro]    = useState(null);
+  // Busca dados via SWR (polling 3s + revalidateOnFocus + keepPreviousData)
+  const { fluxo, dre, comissoes, loading, erro } = useBarbeariaData(filtros);
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    try {
-      // Garante datas válidas — cai para o mês atual se o usuário deixou em branco ou digitou algo inválido
-      const inicio = isValidDate(filtros.inicio) ? filtros.inicio : inicioMes();
-      const fim    = isValidDate(filtros.fim)    ? filtros.fim    : fimMes();
-      const params = { inicio, fim };
-      if (filtros.unidade) params.unidade = filtros.unidade;
+  // Monta o objeto `dados` com a mesma forma que o Dashboard.jsx espera
+  const dados = useMemo(() => {
+    if (!comissoes) return null;
 
-      if (isAdmin) {
-        // Admin: dados completos
-        const [fluxo, dre, comissoes] = await Promise.all([
-          api.fluxoCaixa(params),
-          api.dre(params),
-          api.comissoes(params),
-        ]);
-        const projecao = gerarProjecao(fluxo.entradas_por_dia, inicio, fim);
-        setDados({ fluxo, dre, comissoes, projecao });
-      } else {
-        // Barbeiro: apenas comissões (backend retorna ranking + seus dados)
-        const comissoes = await api.comissoes(params);
-        const myData = comissoes.comissoes?.find(
-          (c) => parseInt(c.id) === profissionalId
-        ) ?? null;
-        setDados({ comissoes, myData, fluxo: null, dre: null, projecao: [] });
-      }
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setLoading(false);
+    if (isAdmin) {
+      const projecao = fluxo
+        ? gerarProjecao(fluxo.entradas_por_dia, filtros.inicio, filtros.fim)
+        : [];
+      return { fluxo, dre, comissoes, projecao };
     }
-  }, [filtros, isAdmin, profissionalId]);
 
-  useEffect(() => {
-    if (isValidDate(filtros.inicio) && isValidDate(filtros.fim)) carregar();
-  }, [carregar]); // eslint-disable-line react-hooks/exhaustive-deps
+    const myData = comissoes.comissoes?.find(
+      (c) => parseInt(c.id) === profissionalId,
+    ) ?? null;
+    return { comissoes, myData, fluxo: null, dre: null, projecao: [] };
+  }, [fluxo, dre, comissoes, isAdmin, profissionalId, filtros.inicio, filtros.fim]);
 
-  return { dados, loading, erro, filtros, setFiltros, recarregar: carregar };
+  // Botão "Atualizar" da FilterBar aciona revalidação imediata
+  const recarregar = useCallback(() => {
+    mutate(key => Array.isArray(key) && ['fluxo-caixa', 'dre', 'comissoes'].includes(key[0]));
+  }, [mutate]);
+
+  return { dados, loading, erro, filtros, setFiltros, recarregar };
 }
