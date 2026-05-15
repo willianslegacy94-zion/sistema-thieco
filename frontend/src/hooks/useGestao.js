@@ -8,6 +8,7 @@ export function useGestao() {
   const [sugestoes,     setSugestoes]     = useState([]);
   const [timeline,      setTimeline]      = useState(null);
   const [profissionais, setProfissionais] = useState([]);
+  const [equipe,        setEquipe]        = useState([]);
   const [loading,       setLoading]       = useState({});
   const [erros,         setErros]         = useState({});
 
@@ -111,8 +112,25 @@ export function useGestao() {
     finally { setL('timeline', false); }
   }, []);
 
+  // ── Equipe (admin — inclui inativos) ──────────────────────────────────────
+  const carregarEquipe = useCallback(async () => {
+    setL('equipe', true); setE('equipe', null);
+    try { setEquipe(await api.profissionaisAdmin()); }
+    catch (e) { setE('equipe', e.message); }
+    finally { setL('equipe', false); }
+  }, []);
+
+  const toggleAtivoBarbeiro = useCallback(async (id, ativo) => {
+    try {
+      const atualizado = await api.toggleProfissionalAtivo(id, ativo);
+      setEquipe((prev) => prev.map((p) => (p.id === id ? atualizado : p)));
+      return true;
+    } catch (e) { setE('equipe', e.message); return false; }
+  }, []);
+
   return {
     profissionais, carregarProfissionais,
+    equipe,        carregarEquipe,        toggleAtivoBarbeiro,
     feedbacks,  carregarFeedbacks,  criarFeedback,  deletarFeedback,
     pdcaLista,  carregarPdca,       criarPdca,      atualizarPdca,  deletarPdca,
     sugestoes,  carregarSugestoes,  criarSugestao,  atualizarSugestao,

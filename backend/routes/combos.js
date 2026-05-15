@@ -126,7 +126,7 @@ router.post('/ativar', authenticate,
 
     try {
       const { cliente_nome, servicos, valor, forma_pagamento = 'credito', bandeira_cartao } = req.body;
-      const unidade = req.user.role === 'operador' ? req.user.unidade : (req.body.unidade ?? 'mutinga');
+      const unidade = req.user.role === 'operador' ? req.user.unidade : (req.body.unidade ?? req.user.unidade);
       const profissional_id = req.user.profissional_id ?? null;
 
       const hoje          = hojeISO();

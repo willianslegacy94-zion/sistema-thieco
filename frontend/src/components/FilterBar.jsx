@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import { SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { isValidDate } from '../hooks/useBarbeariaData';
 
 const UNIDADES = [
   { value: '',         label: 'Todas as Unidades' },
@@ -7,6 +9,25 @@ const UNIDADES = [
 ];
 
 export default function FilterBar({ filtros, onChange, onRecarregar, loading }) {
+  const [localInicio, setLocalInicio] = useState(filtros.inicio);
+  const [localFim,    setLocalFim]    = useState(filtros.fim);
+
+  // Sincroniza quando o pai reseta os filtros (ex: troca de mês)
+  useEffect(() => { setLocalInicio(filtros.inicio); }, [filtros.inicio]);
+  useEffect(() => { setLocalFim(filtros.fim); },     [filtros.fim]);
+
+  function handleInicio(e) {
+    const v = e.target.value;
+    setLocalInicio(v);
+    if (!v || isValidDate(v)) onChange({ ...filtros, inicio: v });
+  }
+
+  function handleFim(e) {
+    const v = e.target.value;
+    setLocalFim(v);
+    if (!v || isValidDate(v)) onChange({ ...filtros, fim: v });
+  }
+
   return (
     <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 py-4 px-1">
       <SlidersHorizontal size={15} className="hidden sm:block text-gold-muted shrink-0" />
@@ -19,8 +40,8 @@ export default function FilterBar({ filtros, onChange, onRecarregar, loading }) 
         <input
           type="date"
           className="input-dark flex-1 sm:w-36"
-          value={filtros.inicio}
-          onChange={(e) => onChange({ ...filtros, inicio: e.target.value })}
+          value={localInicio}
+          onChange={handleInicio}
         />
       </div>
 
@@ -32,8 +53,8 @@ export default function FilterBar({ filtros, onChange, onRecarregar, loading }) 
         <input
           type="date"
           className="input-dark flex-1 sm:w-36"
-          value={filtros.fim}
-          onChange={(e) => onChange({ ...filtros, fim: e.target.value })}
+          value={localFim}
+          onChange={handleFim}
         />
       </div>
 

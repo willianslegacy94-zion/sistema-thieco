@@ -227,7 +227,11 @@ function AbaVenda({ barbeiros, catalogo, user }) {
     setSucesso(null);
 
     try {
+      const barbeiro = barbeiros.find(b => b.id === parseInt(form.profissional_id));
+      const unidade = barbeiro?.unidade ?? user?.unidade;
+
       const basePayload = {
+        ...(unidade ? { unidade } : {}),
         profissional_id: form.profissional_id ? parseInt(form.profissional_id) : undefined,
         servico:         form.servico.trim(),
         tipo_cliente:    form.origens.find(o => ['agendado','esporadico','primeira_vez'].includes(o)) ?? 'agendado',
@@ -764,6 +768,7 @@ function AbaCombo({ barbeiros, catalogo, user }) {
         valor,
         forma_pagamento: comboForm.forma_pagamento,
         bandeira_cartao: comboForm.bandeira_cartao || undefined,
+        ...(user?.unidade ? { unidade: user.unidade } : {}),
       };
       const result = await api.ativarCombo(payload);
       setSucesso({ tipo: 'ativacao', venda: result.venda, combo: result.combo });

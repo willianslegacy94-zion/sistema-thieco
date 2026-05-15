@@ -87,7 +87,7 @@ router.post('/',
     try {
       const unidade = req.user.role === 'operador'
         ? req.user.unidade
-        : req.body.unidade;
+        : (req.body.unidade ?? req.user.unidade);
 
       if (!unidade) return res.status(422).json({ erro: 'Unidade não definida.' });
 

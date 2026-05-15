@@ -533,6 +533,16 @@ const Profissional = {
        VALUES ($1, $2, $3) RETURNING *`,
       [nome, unidade, percentual_comissao ?? 40]
     ),
+  findAllComInativos: () =>
+    query(
+      `SELECT p.* FROM profissionais p ORDER BY p.ativo DESC, p.unidade, p.nome`,
+      []
+    ),
+  toggleAtivo: (id, ativo) =>
+    query(
+      `UPDATE profissionais SET ativo = $1 WHERE id = $2 RETURNING *`,
+      [ativo, id]
+    ),
 };
 
 const Venda = {

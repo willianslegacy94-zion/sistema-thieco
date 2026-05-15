@@ -42,6 +42,10 @@ export const api = {
   // ── CRUD ──────────────────────────────────────────────────────────────────
   profissionais: (params = {}) =>
     http(`/profissionais?${new URLSearchParams(params)}`),
+  profissionaisAdmin: () =>
+    http('/profissionais/admin'),
+  toggleProfissionalAtivo: (id, ativo) =>
+    http(`/profissionais/${id}/ativo`, { method: 'PATCH', body: JSON.stringify({ ativo }) }),
   vendas: (params = {}) =>
     http(`/vendas?${new URLSearchParams(params)}`),
   gastos: (params = {}) =>
