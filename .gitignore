@@ -24,6 +24,9 @@ Thumbs.db
 # Volumes locais (se usar bind-mount para dev)
 .postgres-data/
 
+# ── Claude Code ──────────────────────────────────────────
+.claude/
+
 # ── Documentação / arquivos gerados ──────────────────────
 MANUAL_*.md
 MANUAL_*.html
