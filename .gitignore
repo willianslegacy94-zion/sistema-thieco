@@ -23,3 +23,14 @@ Thumbs.db
 # ── Docker ───────────────────────────────────────────────
 # Volumes locais (se usar bind-mount para dev)
 .postgres-data/
+
+# ── Documentação / arquivos gerados ──────────────────────
+MANUAL_*.md
+MANUAL_*.html
+DEV-LOCAL.md
+PROGRESSO.md
+backend/migra-output.txt
+*.jpeg
+*.jpg
+*.png
+image.*
