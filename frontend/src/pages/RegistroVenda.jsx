@@ -119,6 +119,8 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
   );
 }
 
+const SEM_SERVICO = { id: '__sem_servico__', nome: 'Sem Serviço / Apenas Venda', preco_venda: 0, controla_estoque: false };
+
 // ─── Aba: Venda Normal ───────────────────────────────────────────────────────
 
 const FORM_INICIAL = {
@@ -149,13 +151,15 @@ function AbaVenda({ barbeiros, catalogo, user }) {
   const [sucesso,    setSucesso]    = useState(null);
   const [erro,       setErro]       = useState(null);
 
-  const catalogoServicos = catalogo.filter(i => !i.controla_estoque)
-    .sort((a, b) => {
+  const catalogoServicos = [
+    SEM_SERVICO,
+    ...catalogo.filter(i => !i.controla_estoque).sort((a, b) => {
       const aCombo = a.nome.toLowerCase().startsWith('combo');
       const bCombo = b.nome.toLowerCase().startsWith('combo');
       if (aCombo !== bCombo) return aCombo ? 1 : -1;
       return a.nome.localeCompare(b.nome, 'pt-BR');
-    });
+    }),
+  ];
   const catalogoProdutos = catalogo.filter(i => i.controla_estoque);
 
   function onChange(e) {
@@ -284,6 +288,7 @@ function AbaVenda({ barbeiros, catalogo, user }) {
           bandeira_cartao: primeiraBandeira,
           upsell:          true,
           venda_origem_id: primeiraVendaId,
+          tipo_item:       'produto',
         });
       }
 

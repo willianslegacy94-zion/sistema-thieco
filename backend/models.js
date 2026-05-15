@@ -80,6 +80,16 @@ const ALTER_GASTOS_VALOR_PREVISTO = `
     ADD COLUMN IF NOT EXISTS valor_previsto NUMERIC(10,2);
 `;
 
+const ALTER_VENDAS_TIPO_ITEM = `
+  ALTER TABLE vendas
+    ADD COLUMN IF NOT EXISTS tipo_item VARCHAR(10) NOT NULL DEFAULT 'servico';
+`;
+
+const UPDATE_THIECO_COMISSAO_ZERO = `
+  UPDATE profissionais SET percentual_comissao = 0
+  WHERE nome = 'Thieco Leandro' AND unidade = 'tambore';
+`;
+
 const ADD_UNIQUE_PROF_NOME = `
   DO $$ BEGIN
     IF NOT EXISTS (
@@ -94,7 +104,7 @@ const ADD_UNIQUE_PROF_NOME = `
 const SEED_PROFISSIONAIS = `
   INSERT INTO profissionais (nome, unidade, percentual_comissao)
   VALUES
-    ('Thieco Leandro',  'tambore', 50.00),
+    ('Thieco Leandro',  'tambore', 0.00),
     ('Igor Hidalgo',    'mutinga', 40.00),
     ('Kauã dos Santos', 'mutinga', 40.00)
   ON CONFLICT (nome) DO NOTHING;
@@ -482,6 +492,8 @@ async function runMigrations() {
     await query(ALTER_VENDAS_NOVOS_CAMPOS);
     await query(ALTER_VENDAS_INTEL);
     await query(ALTER_GASTOS_VALOR_PREVISTO);
+    await query(ALTER_VENDAS_TIPO_ITEM);
+    await query(UPDATE_THIECO_COMISSAO_ZERO);
     await query(CREATE_COMBOS);
     await query(CREATE_CLIENTES);
     await query(CREATE_METAS);
@@ -565,16 +577,17 @@ const Venda = {
   },
   create: ({ unidade, profissional_id, servico, valor, comissao, forma_pagamento, data, observacao, importado,
              desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
-             nome_cliente, origem_cliente, bandeira_cartao, valor_liquido }) =>
+             nome_cliente, origem_cliente, bandeira_cartao, valor_liquido, tipo_item }) =>
     query(
       `INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, forma_pagamento, data, observacao, importado,
                            desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
-                           nome_cliente, origem_cliente, bandeira_cartao, valor_liquido)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+                           nome_cliente, origem_cliente, bandeira_cartao, valor_liquido, tipo_item)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
       [unidade, profissional_id, servico, valor, comissao ?? 0, forma_pagamento ?? 'dinheiro', data,
        observacao ?? null, importado ?? false,
        desconto ?? 0, tipo_cliente ?? 'agendado', upsell ?? false, venda_origem_id ?? null, qtd_clientes ?? 1,
-       nome_cliente ?? null, origem_cliente ?? null, bandeira_cartao ?? null, valor_liquido ?? null]
+       nome_cliente ?? null, origem_cliente ?? null, bandeira_cartao ?? null, valor_liquido ?? null,
+       tipo_item ?? 'servico']
     ),
   bulkCreate: async (vendas) => {
     const client = await require('./db').getClient();
