@@ -781,6 +781,9 @@ const COMBO_FORM_INICIAL = {
   bandeira_cartao: '',
   novo_servico:    '',
   novo_valor:      '',
+  cliente_contato: '',
+  data_nascimento: '',
+  profissional_id: '',
 };
 
 function AbaCombo({ barbeiros, catalogo, user }) {
@@ -872,6 +875,8 @@ function AbaCombo({ barbeiros, catalogo, user }) {
                                          : parseFloat(planoSelecionado?.preco_venda ?? 0);
       const payload = {
         cliente_nome:    busca.trim(),
+        cliente_contato: comboForm.cliente_contato || undefined,
+        profissional_id: comboForm.profissional_id ? parseInt(comboForm.profissional_id) : undefined,
         servicos:        comboForm.novo_servico,
         valor,
         forma_pagamento: comboForm.forma_pagamento,
@@ -1043,6 +1048,41 @@ function AbaCombo({ barbeiros, catalogo, user }) {
             </div>
 
             <form onSubmit={ativarNovoCombo} className="space-y-3">
+
+              {/* Nome (somente leitura) + Contato */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Nome do cliente</label>
+                  <input type="text" value={busca} readOnly className="input-dark w-full opacity-60 cursor-default" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Contato / WhatsApp</label>
+                  <input
+                    type="text" name="cliente_contato" value={comboForm.cliente_contato}
+                    onChange={onChangeForm} className="input-dark w-full" placeholder="(11) 99999-9999"
+                  />
+                </div>
+              </div>
+
+              {/* Data de nascimento + Barbeiro (filtrado pelo login) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Data de nascimento</label>
+                  <input type="date" name="data_nascimento" value={comboForm.data_nascimento}
+                    onChange={onChangeForm} className="input-dark w-full" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Barbeiro</label>
+                  <select name="profissional_id" value={comboForm.profissional_id} onChange={onChangeForm} className="input-dark w-full">
+                    <option value="">Qualquer barbeiro</option>
+                    {barbeiros.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="h-px bg-surface-border" />
+
+              {/* Plano */}
               <div>
                 <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Plano de combo *</label>
                 <select name="novo_servico" value={comboForm.novo_servico} onChange={onChangeForm} required className="input-dark w-full">
@@ -1054,11 +1094,12 @@ function AbaCombo({ barbeiros, catalogo, user }) {
               </div>
 
               <div>
-                <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor</label>
+                <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor (R$)</label>
                 <input type="number" name="novo_valor" value={comboForm.novo_valor} onChange={onChangeForm}
                   min="0" step="0.01" placeholder="0,00" className="input-dark w-36" />
               </div>
 
+              {/* Pagamento */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Pagamento *</label>

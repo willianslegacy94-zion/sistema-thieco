@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Tag, Plus, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Tag, Plus, AlertTriangle, CheckCircle, RefreshCw, ChevronDown, X } from 'lucide-react';
 import { api } from '../lib/api';
 
 const UNIDADES = [
@@ -14,6 +14,8 @@ function addDias(d, n) {
   return dt.toISOString().slice(0, 10);
 }
 
+const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
+
 const FORM_INICIAL = {
   cliente_nome:    '',
   cliente_contato: '',
@@ -21,53 +23,179 @@ const FORM_INICIAL = {
   unidade:         'tambore',
   data_aquisicao:  hojeISO(),
   data_vencimento: addDias(hojeISO(), 30),
-  servicos:        '',
+  servicos:        [],   // array de nomes selecionados
   valor:           '',
 };
 
-const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
+// ─── Seletor de serviços com chips e dropdown de checkboxes ─────────────────
+
+function ServicosSeletor({ unidade, selecionados, onChange }) {
+  const [catalogo, setCatalogo] = useState([]);
+  const [aberto,   setAberto]   = useState(false);
+  const wrapper = useRef(null);
+
+  useEffect(() => {
+    setCatalogo([]);
+    if (!unidade) return;
+    api.catalogo({ unidade })
+      .then(d => {
+        const servicos = Array.isArray(d)
+          ? d.filter(i => i.categoria === 'combo')
+          : [];
+        setCatalogo(servicos);
+      })
+      .catch(() => {});
+  }, [unidade]);
+
+  useEffect(() => {
+    function fechar(e) {
+      if (wrapper.current && !wrapper.current.contains(e.target)) setAberto(false);
+    }
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  function toggle(nome) {
+    onChange(
+      selecionados.includes(nome)
+        ? selecionados.filter(s => s !== nome)
+        : [...selecionados, nome]
+    );
+  }
+
+  function remover(nome) {
+    onChange(selecionados.filter(s => s !== nome));
+  }
+
+  return (
+    <div ref={wrapper} className="space-y-2">
+      {/* Chips dos serviços selecionados */}
+      {selecionados.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selecionados.map(s => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gold/10 text-gold border border-gold/25"
+            >
+              {s}
+              <button
+                type="button"
+                onClick={() => remover(s)}
+                className="text-gold/50 hover:text-gold transition-colors ml-0.5"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Dropdown de checkboxes */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setAberto(v => !v)}
+          className="input-dark w-full flex items-center justify-between text-left"
+        >
+          <span className={`text-sm ${selecionados.length === 0 ? 'text-gold-muted/60' : 'text-gold-muted'}`}>
+            {selecionados.length === 0
+              ? 'Selecione os serviços incluídos…'
+              : `${selecionados.length} serviço(s) selecionado(s)`}
+          </span>
+          <ChevronDown
+            size={14}
+            className={`text-gold-muted shrink-0 transition-transform ${aberto ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {aberto && (
+          <ul className="absolute w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl z-50 max-h-64 overflow-y-auto">
+            {catalogo.length > 0 ? (
+              catalogo.map(item => {
+                const sel = selecionados.includes(item.nome);
+                return (
+                  <li key={item.id}>
+                    <label className="flex items-center gap-3 px-4 py-2.5 hover:bg-onix-300/60 cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={sel}
+                        onChange={() => toggle(item.nome)}
+                        className="accent-gold w-3.5 h-3.5 shrink-0"
+                      />
+                      <span className="flex-1 text-sm text-gold-light">{item.nome}</span>
+                      <span className="text-xs text-gold/60 tabular-nums shrink-0">{fmt(item.preco_venda)}</span>
+                    </label>
+                  </li>
+                );
+              })
+            ) : (
+              <li className="px-4 py-3 text-xs text-gold-muted/60">
+                Nenhum serviço cadastrado para esta unidade.
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
 
 export default function Combos() {
-  const [combos,     setCombos]     = useState([]);
-  const [barbeiros,  setBarbeiros]  = useState([]);
-  const [abaAtiva,   setAbaAtiva]   = useState('lista');
-  const [loading,    setLoading]    = useState(false);
-  const [form,       setForm]       = useState(FORM_INICIAL);
-  const [enviando,   setEnviando]   = useState(false);
-  const [sucesso,    setSucesso]    = useState(null);
-  const [erro,       setErro]       = useState(null);
-  const [apenasVenc, setApenasVenc] = useState(false);
+  const [combos,          setCombos]          = useState([]);
+  const [barbeirosParaForm, setBarbeirosParaForm] = useState([]);
+  const [abaAtiva,        setAbaAtiva]        = useState('lista');
+  const [loading,         setLoading]         = useState(false);
+  const [form,            setForm]            = useState(FORM_INICIAL);
+  const [enviando,        setEnviando]        = useState(false);
+  const [sucesso,         setSucesso]         = useState(null);
+  const [erro,            setErro]            = useState(null);
+  const [apenasVenc,      setApenasVenc]      = useState(false);
 
   async function carregar() {
     setLoading(true);
     try {
-      const [rows, profs] = await Promise.all([
-        api.combos({ apenas_vencidos: apenasVenc ? 'true' : undefined }),
-        api.profissionais({ apenas_barbeiros: 'true' }),
-      ]);
+      const rows = await api.combos({ apenas_vencidos: apenasVenc ? 'true' : undefined });
       setCombos(rows);
-      setBarbeiros(profs);
     } catch { /* silencioso */ }
     finally { setLoading(false); }
   }
 
   useEffect(() => { carregar(); }, [apenasVenc]);
 
+  // Cascata: busca barbeiros da unidade via API toda vez que a unidade muda
+  useEffect(() => {
+    if (!form.unidade) return;
+    api.profissionais({ unidade: form.unidade })
+      .then(setBarbeirosParaForm)
+      .catch(() => setBarbeirosParaForm([]));
+  }, [form.unidade]);
+
   function onChange(e) {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm(f => {
+      const next = { ...f, [name]: value };
+      if (name === 'unidade') next.profissional_id = '';
+      return next;
+    });
   }
 
   async function onSubmit(e) {
     e.preventDefault();
+    if (form.servicos.length === 0) {
+      setErro('Selecione ao menos um serviço incluído no combo.');
+      return;
+    }
     setEnviando(true);
     setErro(null);
     setSucesso(null);
     try {
       const payload = {
         ...form,
+        servicos:        form.servicos.join(' + '),
         profissional_id: form.profissional_id ? parseInt(form.profissional_id) : undefined,
-        valor: parseFloat(form.valor),
+        valor:           parseFloat(form.valor),
       };
       const novo = await api.criarCombo(payload);
       setSucesso(novo);
@@ -82,8 +210,7 @@ export default function Combos() {
   }
 
   async function renovar(id, dataAtual) {
-    const nova = addDias(dataAtual, 30);
-    await api.atualizarCombo(id, { data_vencimento: nova });
+    await api.atualizarCombo(id, { data_vencimento: addDias(dataAtual, 30) });
     carregar();
   }
 
@@ -136,6 +263,7 @@ export default function Combos() {
             </div>
           )}
 
+          {/* Cliente */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Nome do cliente *</label>
@@ -147,6 +275,7 @@ export default function Combos() {
             </div>
           </div>
 
+          {/* Unidade + Barbeiro (cascata) */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Unidade *</label>
@@ -158,16 +287,24 @@ export default function Combos() {
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Barbeiro</label>
               <select name="profissional_id" value={form.profissional_id} onChange={onChange} className="input-dark w-full">
                 <option value="">Qualquer barbeiro</option>
-                {barbeiros.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                {barbeirosParaForm.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
               </select>
             </div>
           </div>
 
+          {/* Serviços incluídos — seletor com chips */}
           <div>
-            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Serviços incluídos *</label>
-            <input type="text" name="servicos" value={form.servicos} onChange={onChange} required className="input-dark w-full" placeholder="Ex.: 4 cortes + 2 barbas" />
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Serviços incluídos *
+            </label>
+            <ServicosSeletor
+              unidade={form.unidade}
+              selecionados={form.servicos}
+              onChange={v => setForm(f => ({ ...f, servicos: v }))}
+            />
           </div>
 
+          {/* Valor + Datas */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Valor (R$) *</label>
