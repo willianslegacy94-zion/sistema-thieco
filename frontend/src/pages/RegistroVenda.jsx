@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Scissors, CheckCircle, AlertCircle, Plus, ChevronDown, Search, Tag, RefreshCw, X } from 'lucide-react';
+import { Scissors, CheckCircle, AlertCircle, Plus, ChevronDown, Tag, RefreshCw, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useInvalidarDashboard } from '../hooks/useBarbeariaData';
@@ -210,18 +210,16 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
               </li>
             ))
           ) : (
-            <li className="px-4 py-3 flex items-center justify-between gap-2">
+            <li className="px-4 py-3">
               <p className="text-xs text-gold-muted">Nenhum cliente encontrado na base.</p>
-              {onCadastrar ? (
+              {onCadastrar && (
                 <button
                   type="button"
                   onMouseDown={onCadastrar}
-                  className="flex items-center gap-1 text-xs text-gold hover:text-gold-light font-semibold shrink-0"
+                  className="mt-1.5 flex items-center gap-1 text-xs text-gold hover:text-gold-light font-semibold"
                 >
                   <Tag size={12} /> Ativar Combo
                 </button>
-              ) : (
-                <span className="text-[11px] text-amber-400/80 shrink-0">Solicite ao admin</span>
               )}
             </li>
           )}
@@ -483,7 +481,6 @@ function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes, onAtivarCombo }
             value={form.nome_cliente}
             onChange={v => setForm(f => ({ ...f, nome_cliente: v }))}
             onSelectCliente={onSelectCliente}
-            onCadastrar={onAtivarCombo ? () => onAtivarCombo(form.nome_cliente) : onIrParaClientes}
           />
         </div>
 
@@ -870,11 +867,6 @@ function AbaCombo({ barbeiros, catalogo, user, buscaInicial }) {
     }
   }, [buscaInicial]);
 
-  async function buscarCombo(e) {
-    e.preventDefault();
-    buscarComboPorNome(busca);
-  }
-
   function onChangeForm(e) {
     const { name, value } = e.target;
     if (name === 'novo_servico') {
@@ -981,23 +973,17 @@ function AbaCombo({ barbeiros, catalogo, user, buscaInicial }) {
       <div className="card-premium p-5 space-y-4">
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Buscar cliente pelo nome *</label>
-          <form onSubmit={buscarCombo} className="flex gap-2">
-            <input
-              type="text"
-              value={busca}
-              onChange={e => { setBusca(e.target.value); setCombo(undefined); setSucesso(null); }}
-              placeholder="Ex.: João Silva"
-              className="input-dark flex-1"
-              required
-              minLength={2}
-            />
-            <button type="submit" disabled={buscando || busca.trim().length < 2}
-              className="btn-outline-gold px-3 disabled:opacity-50 shrink-0">
-              {buscando
-                ? <RefreshCw size={14} className="animate-spin" />
-                : <Search size={14} />}
-            </button>
-          </form>
+          <ClienteAutocomplete
+            value={busca}
+            onChange={v => { setBusca(v); setCombo(undefined); setSucesso(null); }}
+            onSelectCliente={c => { setBusca(c.nome); buscarComboPorNome(c.nome); }}
+            onCadastrar={() => setCombo(null)}
+          />
+          {buscando && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-gold-muted">
+              <RefreshCw size={12} className="animate-spin" /> Buscando combo…
+            </div>
+          )}
         </div>
 
         {comboAtivo && (
@@ -1098,8 +1084,8 @@ function AbaCombo({ barbeiros, catalogo, user, buscaInicial }) {
         {combo === null && busca.trim().length >= 2 && (
           <div className="space-y-4">
             <div className="p-3 rounded-xl border border-gold-dark/30 bg-gold/5 text-gold-muted text-sm">
-              <p className="font-semibold text-gold-light">Novo assinante</p>
-              <p className="text-xs mt-0.5">Nenhum combo encontrado para "{busca}". Preencha abaixo para ativar.</p>
+              <p className="text-xs text-gold-muted">Nenhum cliente encontrado na base.</p>
+              <p className="text-xs mt-0.5 text-gold-light">Preencha abaixo para ativar o combo.</p>
             </div>
 
             <form onSubmit={ativarNovoCombo} className="space-y-3">
@@ -1184,7 +1170,7 @@ function AbaCombo({ barbeiros, catalogo, user, buscaInicial }) {
                 {enviando
                   ? <span className="w-4 h-4 border-2 border-onix/30 border-t-onix rounded-full animate-spin" />
                   : <Tag size={15} />}
-                {enviando ? 'Ativando…' : 'Vender e Ativar Combo'}
+                {enviando ? 'Ativando…' : 'Ativar Combo'}
               </button>
             </form>
           </div>
