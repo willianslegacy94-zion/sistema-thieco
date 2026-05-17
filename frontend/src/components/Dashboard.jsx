@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, Wallet, AlertCircle, Scissors, Star, Hash, Users } from 'lucide-react';
+import { useState } from 'react';
+import { TrendingUp, TrendingDown, Wallet, AlertCircle, Scissors, Star, Hash, Users, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboard } from '../hooks/useDashboard';
 import FilterBar from './FilterBar';
@@ -12,6 +13,55 @@ function fmt(v) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency', currency: 'BRL', minimumFractionDigits: 2,
   }).format(v ?? 0);
+}
+
+function fmtQtd(v) {
+  return new Intl.NumberFormat('pt-BR').format(Math.round(v ?? 0));
+}
+
+// ─── Card clicável de Comissões Pagas ────────────────────────────────────────
+
+function ComissoesPagasCard({ total, receitaBruta, loading, aberto, onToggle, titulo = 'Comissões Pagas' }) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}
+      className={`card-premium border cursor-pointer select-none transition-colors duration-200 p-5 animate-slide-up
+        ${aberto ? 'border-amber-600/70' : 'border-amber-800/50 hover:border-amber-600/50'}`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-xs uppercase tracking-widest text-gold-muted font-semibold">
+          {titulo}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <Wallet size={18} strokeWidth={1.5} className="text-amber-400 opacity-70" />
+          <ChevronDown
+            size={14}
+            strokeWidth={2}
+            className={`text-amber-400/50 transition-transform duration-200 ${aberto ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="h-8 w-32 bg-surface-hover rounded animate-pulse" />
+      ) : (
+        <p className="font-serif font-bold text-2xl sm:text-3xl leading-none text-amber-300">
+          {fmt(total)}
+        </p>
+      )}
+
+      {!loading && (
+        <p className="mt-2 text-xs text-gold-light/50">
+          {receitaBruta > 0 ? `${((total / receitaBruta) * 100).toFixed(1)}% do faturamento` : '—'}
+        </p>
+      )}
+
+      <div className="mt-4 h-px bg-gradient-to-r from-transparent via-gold-dark/30 to-transparent" />
+    </div>
+  );
 }
 
 // ─── View do Barbeiro (dados pessoais) ───────────────────────────────────────
@@ -94,12 +144,18 @@ function DashboardBarbeiro({ dados, loading, erro, filtros, setFiltros, recarreg
 
 function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar, profissionais }) {
   const fluxo  = dados?.fluxo?.totais ?? {};
+  const [comissoesAberto, setComissoesAberto] = useState(false);
 
   // Quando a unidade muda, limpa o barbeiro selecionado e filtra a lista
   function handleFiltros(novosFiltros) {
     if (novosFiltros.unidade !== filtros.unidade) {
       setFiltros({ ...novosFiltros, profissional_id: '' });
+      setComissoesAberto(false);
     } else {
+      if (novosFiltros.profissional_id !== filtros.profissional_id) {
+        // Abre automaticamente ao selecionar barbeiro; fecha ao limpar
+        setComissoesAberto(!!novosFiltros.profissional_id);
+      }
       setFiltros(novosFiltros);
     }
   }
@@ -123,6 +179,8 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar,
   const pctDesconto         = toNum(fluxo.pct_desconto);
   const atendimentos        = toNum(fluxo.atendimentos);
   const ticketMedio         = toNum(fluxo.ticket_medio);
+  const qtdServicos         = parseInt(fluxo.qtd_servicos ?? 0);
+  const qtdProdutos         = parseInt(fluxo.qtd_produtos ?? 0);
   const margem              = receitaBruta > 0
     ? ((lucroLiquido / receitaBruta) * 100).toFixed(1)
     : '0.0';
@@ -160,38 +218,54 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar,
         <>
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <MetricCard titulo="Faturamento Gerado"  valor={receitaBruta}    icon={TrendingUp} variante="default" loading={loading} sub={`${filtros.inicio} → ${filtros.fim}`} />
-            <MetricCard titulo="Comissão Total"       valor={totalComissoes}  icon={Wallet}     variante="alerta"  loading={loading} sub={receitaBruta > 0 ? `${((totalComissoes/receitaBruta)*100).toFixed(1)}% do faturamento` : '—'} />
+            <ComissoesPagasCard
+              titulo="Comissão Total"
+              total={totalComissoes}
+              receitaBruta={receitaBruta}
+              loading={loading}
+              aberto={comissoesAberto}
+              onToggle={() => setComissoesAberto((v) => !v)}
+            />
             <MetricCard titulo="Atendimentos Únicos"  valor={atendimentos}    icon={Star}       variante="sucesso" loading={loading} formatado={false} sub="Comandas no período" />
             <MetricCard titulo="Ticket Médio"         valor={ticketMedio}     icon={Hash}       variante="default" loading={loading} sub="Faturamento ÷ Atendimentos" />
           </section>
 
-          {/* Split comissão serviço vs produto */}
-          {(comissaoServico > 0 || comissaoProduto > 0 || !loading) && (
-            <section className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="card-premium p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-gold-muted uppercase tracking-wider">Comissão — Serviços</p>
-                  <p className="text-lg font-bold text-amber-400 mt-0.5">{fmt(comissaoServico)}</p>
-                  <p className="text-[10px] text-gold-muted/60 mt-0.5">40% sobre valor bruto de tabela</p>
+          {/* Painel de detalhamento de comissões */}
+          {comissoesAberto && !loading && (
+            <section className="mb-4 rounded-xl border border-amber-800/40 bg-amber-950/20 p-5 animate-slide-up">
+              <p className="text-[11px] text-amber-400/60 uppercase tracking-widest font-semibold mb-4">
+                Detalhamento — Comissões
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="card-premium p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-gold-muted uppercase tracking-wider">Serviços</p>
+                    <p className="text-lg font-bold text-amber-400 mt-0.5">{fmt(comissaoServico)}</p>
+                    <p className="text-[10px] text-gold-muted/60 mt-0.5">
+                      {fmtQtd(qtdServicos)} execuções · 40% s/ bruto
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] text-gold-muted uppercase tracking-wider">% do total</p>
+                    <p className="text-2xl font-bold text-amber-400">
+                      {totalComissoes > 0 ? ((comissaoServico / totalComissoes) * 100).toFixed(1) : '0,0'}%
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[11px] text-gold-muted uppercase tracking-wider">% do fat.</p>
-                  <p className="text-2xl font-bold text-amber-400">
-                    {receitaBruta > 0 ? ((comissaoServico / receitaBruta) * 100).toFixed(1) : '0,0'}%
-                  </p>
-                </div>
-              </div>
-              <div className="card-premium p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-gold-muted uppercase tracking-wider">Comissão — Produtos</p>
-                  <p className="text-lg font-bold text-amber-400 mt-0.5">{fmt(comissaoProduto)}</p>
-                  <p className="text-[10px] text-gold-muted/60 mt-0.5">10% sobre valor bruto de tabela</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[11px] text-gold-muted uppercase tracking-wider">% do fat.</p>
-                  <p className="text-2xl font-bold text-amber-400">
-                    {receitaBruta > 0 ? ((comissaoProduto / receitaBruta) * 100).toFixed(1) : '0,0'}%
-                  </p>
+                <div className="card-premium p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-gold-muted uppercase tracking-wider">Produtos Físicos</p>
+                    <p className="text-lg font-bold text-amber-400 mt-0.5">{fmt(comissaoProduto)}</p>
+                    <p className="text-[10px] text-gold-muted/60 mt-0.5">
+                      {fmtQtd(qtdProdutos)} unidades vendidas · 10% s/ bruto
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] text-gold-muted uppercase tracking-wider">% do total</p>
+                    <p className="text-2xl font-bold text-amber-400">
+                      {totalComissoes > 0 ? ((comissaoProduto / totalComissoes) * 100).toFixed(1) : '0,0'}%
+                    </p>
+                  </div>
                 </div>
               </div>
             </section>

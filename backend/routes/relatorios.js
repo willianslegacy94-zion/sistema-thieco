@@ -96,7 +96,9 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
         SUM(comissao_produto)  AS total_comissao_produto,
         SUM(comissao)          AS total_comissoes,
         SUM(desconto)          AS total_descontos,
-        COUNT(DISTINCT COALESCE(venda_origem_id, id)) AS total_atendimentos
+        COUNT(DISTINCT COALESCE(venda_origem_id, id))          AS total_atendimentos,
+        COUNT(*) FILTER (WHERE tipo_item != 'produto')         AS qtd_servicos,
+        COUNT(*) FILTER (WHERE tipo_item = 'produto')          AS qtd_produtos
       FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pfv}
     `, [inicio, fim]);
 
@@ -141,6 +143,8 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
         pct_desconto:           pctDesconto,
         atendimentos,
         ticket_medio:           ticketMedio,
+        qtd_servicos:           parseInt(r.qtd_servicos  || 0),
+        qtd_produtos:           parseInt(r.qtd_produtos  || 0),
       },
       entradas_por_dia: entradasQ.rows,
       saidas_por_dia:   saidasQ.rows,
