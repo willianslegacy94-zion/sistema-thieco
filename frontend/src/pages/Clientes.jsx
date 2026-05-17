@@ -40,6 +40,10 @@ export default function Clientes() {
   const [sucesso,        setSucesso]        = useState(null);
   const [erro,           setErro]           = useState(null);
 
+  useEffect(() => {
+    api.profissionais().then(setBarbeiros).catch(() => {});
+  }, []);
+
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
@@ -48,12 +52,8 @@ export default function Clientes() {
       if (unidade)        params.unidade                 = unidade;
       if (filtroBarbeiro) params.barbeiro_responsavel_id = filtroBarbeiro;
 
-      const [rows, profs] = await Promise.all([
-        api.clientes(params),
-        api.profissionais(),
-      ]);
+      const rows = await api.clientes(params);
       setClientes(rows);
-      setBarbeiros(profs);
     } catch { /* silencioso */ }
     finally { setLoading(false); }
   }, [busca, unidade, filtroBarbeiro]);
