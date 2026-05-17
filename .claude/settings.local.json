@@ -107,7 +107,28 @@
       "Bash(Start-Sleep -Seconds 35)",
       "Bash(Select-String thieco *)",
       "WebFetch(domain:localhost)",
-      "WebFetch(domain:127.0.0.1)"
+      "WebFetch(domain:127.0.0.1)",
+      "Read(//c/Users/Willians DataMeat/Desktop/Ops/**)",
+      "Bash(ls -la *.md)",
+      "Bash(sed 's/CREATE TABLE public\\\\.//')",
+      "Bash(sed 's/ \\(.*//')",
+      "Bash(dir *)",
+      "Bash(python -m json.tool)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'  {d.get\\(\\\\\"nome\\\\\"\\)} ativo={d.get\\(\\\\\"ativo\\\\\"\\)}'\\)\")",
+      "Bash(grep -E \"\\\\.\\(md|txt|html\\)$\")",
+      "Bash(python -c \"import sys,json; u=json.load\\(sys.stdin\\)['usuario']; print\\(f\\\\\"  {u['nome']} | role={u['role']} | unidade={u['unidade']}\\\\\"\\)\")",
+      "Bash(python -c \"import sys,json; items=json.load\\(sys.stdin\\); [print\\(f\\\\\"  {i['nome']} — R\\\\$ {i['preco_venda']}\\\\\"\\) for i in items[:5]]; print\\(f\\\\\"  ... {len\\(items\\)} serviço\\(s\\) total\\\\\"\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f\\\\\"  {len\\(d\\)} plano\\(s\\) registrado\\(s\\)\\\\\"\\)\")",
+      "Bash(python -c \"import sys,json; [print\\(f\\\\\"  id={p['id']} | {p['nome']} | {p['unidade']} | ativo={p['ativo']}\\\\\"\\) for p in json.load\\(sys.stdin\\)]\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Willians DataMeet\\\\Desktop\\\\Ops\\\\sistema-thieco\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(sc query *)",
+      "Bash(Select-String -Pattern \"STATE\")",
+      "Bash(Select-Object -First 3)",
+      "PowerShell(Get-Service *)",
+      "Bash(Get-ChildItem -Path . -Directory)"
     ]
   }
 }

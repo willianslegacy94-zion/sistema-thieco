@@ -237,7 +237,7 @@ function ModalEditar({ venda, barbeiros, onSalvar, onFechar, salvando, erroSalva
 export default function Lancamentos() {
   const { user, isAdmin } = useAuth();
 
-  const [filtros, setFiltros] = useState({ inicio: hojeISO(), fim: hojeISO() });
+  const [filtros, setFiltros] = useState({ inicio: hojeISO(), fim: hojeISO(), unidade: '', profissional_id: '' });
   const [vendas,     setVendas]     = useState([]);
   const [vendasHoje, setVendasHoje] = useState([]);
   const [barbeiros,  setBarbeiros]  = useState([]);
@@ -253,8 +253,15 @@ export default function Lancamentos() {
   async function carregar() {
     setLoading(true);
     try {
-      const params = { ...filtros };
-      if (!isAdmin && user?.unidade) params.unidade = user.unidade;
+      const params = {};
+      if (filtros.inicio)          params.inicio          = filtros.inicio;
+      if (filtros.fim)             params.fim             = filtros.fim;
+      if (!isAdmin && user?.unidade) {
+        params.unidade = user.unidade;
+      } else if (filtros.unidade) {
+        params.unidade = filtros.unidade;
+      }
+      if (filtros.profissional_id) params.profissional_id = filtros.profissional_id;
       const data = await api.vendas(params);
       setVendas(Array.isArray(data) ? data : []);
     } catch { /* silencioso */ }
@@ -273,7 +280,7 @@ export default function Lancamentos() {
   useEffect(() => {
     carregar();
     carregarHoje();
-    api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
+    api.profissionais().then(setBarbeiros).catch(() => {});
   }, []);
 
   async function salvar(id, payload) {
@@ -333,27 +340,61 @@ export default function Lancamentos() {
       </div>
 
       {/* Filtros */}
-      <div className="card-premium p-4 mb-5 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-2 flex-1">
-          <input
-            type="date" value={filtros.inicio}
-            onChange={e => setFiltros(f => ({ ...f, inicio: e.target.value }))}
-            className="input-dark text-xs px-2 py-1 flex-1"
-          />
-          <span className="text-gold-muted text-xs shrink-0">até</span>
-          <input
-            type="date" value={filtros.fim}
-            onChange={e => setFiltros(f => ({ ...f, fim: e.target.value }))}
-            className="input-dark text-xs px-2 py-1 flex-1"
-          />
+      <div className="card-premium p-4 mb-5 flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              type="date" value={filtros.inicio}
+              onChange={e => setFiltros(f => ({ ...f, inicio: e.target.value }))}
+              className="input-dark text-xs px-2 py-1 flex-1"
+            />
+            <span className="text-gold-muted text-xs shrink-0">até</span>
+            <input
+              type="date" value={filtros.fim}
+              onChange={e => setFiltros(f => ({ ...f, fim: e.target.value }))}
+              className="input-dark text-xs px-2 py-1 flex-1"
+            />
+          </div>
+          <button
+            onClick={carregar} disabled={loading}
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gold-muted hover:text-gold border border-surface-border rounded-lg transition-colors"
+          >
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
         </div>
-        <button
-          onClick={carregar} disabled={loading}
-          className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gold-muted hover:text-gold border border-surface-border rounded-lg transition-colors"
-        >
-          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          Atualizar
-        </button>
+
+        {/* Filtros adicionais */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {isAdmin && (
+            <select
+              value={filtros.unidade}
+              onChange={e => {
+                const novaUnidade = e.target.value;
+                setFiltros(f => {
+                  const barbeiro = barbeiros.find(b => String(b.id) === String(f.profissional_id));
+                  const profissional_id = barbeiro && novaUnidade && barbeiro.unidade !== novaUnidade ? '' : f.profissional_id;
+                  return { ...f, unidade: novaUnidade, profissional_id };
+                });
+              }}
+              className="input-dark text-xs px-2 py-1 flex-1"
+            >
+              <option value="">Todas as unidades</option>
+              <option value="tambore">Tambore</option>
+              <option value="mutinga">Mutinga</option>
+            </select>
+          )}
+          <select
+            value={filtros.profissional_id}
+            onChange={e => setFiltros(f => ({ ...f, profissional_id: e.target.value }))}
+            className="input-dark text-xs px-2 py-1 flex-1"
+          >
+            <option value="">Todos os barbeiros</option>
+            {barbeiros
+              .filter(b => !filtros.unidade || b.unidade === filtros.unidade)
+              .map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Resumo */}

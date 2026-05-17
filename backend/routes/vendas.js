@@ -92,6 +92,8 @@ router.post('/',
   body('origem_cliente').optional().isIn(ORIGENS_CLIENTE),
   body('bandeira_cartao').optional().trim(),
   body('tipo_item').optional().isIn(['servico', 'produto']),
+  body('telefone_cliente').optional().trim(),
+  body('data_nascimento_cliente').optional({ values: 'falsy' }).isDate(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
@@ -107,6 +109,7 @@ router.post('/',
         profissional_id, servico, valor, forma_pagamento, data, observacao,
         desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
         nome_cliente, origem_cliente, bandeira_cartao, tipo_item,
+        telefone_cliente, data_nascimento_cliente,
       } = req.body;
 
       const tipoItem = tipo_item ?? 'servico';
@@ -131,6 +134,43 @@ router.post('/',
         valor_liquido,
         tipo_item: tipoItem,
       });
+
+      // Persistência dupla: upsert do cliente vinculado à venda
+      if (nome_cliente) {
+        const { rows: clientes } = await query(
+          `SELECT id FROM clientes WHERE LOWER(nome) = LOWER($1) AND ativo = true LIMIT 1`,
+          [nome_cliente]
+        );
+
+        if (clientes.length > 0) {
+          // Cliente já existe — atualiza apenas os campos fornecidos
+          const sets   = [];
+          const params = [clientes[0].id];
+          if (telefone_cliente)        sets.push(`contato = $${params.push(telefone_cliente)}`);
+          if (data_nascimento_cliente) sets.push(`data_nascimento = $${params.push(data_nascimento_cliente)}`);
+          if (profissional_id)         sets.push(`barbeiro_responsavel_id = $${params.push(profissional_id)}`);
+          if (sets.length > 0) {
+            await query(`UPDATE clientes SET ${sets.join(', ')} WHERE id = $1`, params);
+          }
+        } else {
+          // Cliente novo — cadastra automaticamente a partir dos dados da venda
+          await query(
+            `INSERT INTO clientes
+               (nome, contato, unidade, primeira_visita, ultima_visita,
+                data_nascimento, barbeiro_responsavel_id)
+             VALUES ($1, $2, $3, $4, $4, $5, $6)`,
+            [
+              nome_cliente,
+              telefone_cliente        ?? null,
+              unidade,
+              data,                             // primeira_visita = ultima_visita = data da venda
+              data_nascimento_cliente ?? null,
+              profissional_id         ?? null,
+            ]
+          );
+        }
+      }
+
       res.status(201).json(rows[0]);
     } catch (err) {
       res.status(500).json({ erro: err.message });

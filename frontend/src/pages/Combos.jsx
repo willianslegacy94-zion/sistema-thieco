@@ -29,7 +29,7 @@ const FORM_INICIAL = {
 
 // ─── Seletor de serviços com chips e dropdown de checkboxes ─────────────────
 
-function ServicosSeletor({ unidade, selecionados, onChange }) {
+function ServicosSeletor({ unidade, selecionados, onChange, onValorChange }) {
   const [catalogo, setCatalogo] = useState([]);
   const [aberto,   setAberto]   = useState(false);
   const wrapper = useRef(null);
@@ -55,16 +55,25 @@ function ServicosSeletor({ unidade, selecionados, onChange }) {
     return () => document.removeEventListener('mousedown', fechar);
   }, []);
 
+  function calcularTotal(nomes) {
+    const total = catalogo
+      .filter(i => nomes.includes(i.nome))
+      .reduce((sum, i) => sum + (parseFloat(i.preco_venda) || 0), 0);
+    if (onValorChange) onValorChange(total > 0 ? total.toFixed(2) : '');
+  }
+
   function toggle(nome) {
-    onChange(
-      selecionados.includes(nome)
-        ? selecionados.filter(s => s !== nome)
-        : [...selecionados, nome]
-    );
+    const novos = selecionados.includes(nome)
+      ? selecionados.filter(s => s !== nome)
+      : [...selecionados, nome];
+    onChange(novos);
+    calcularTotal(novos);
   }
 
   function remover(nome) {
-    onChange(selecionados.filter(s => s !== nome));
+    const novos = selecionados.filter(s => s !== nome);
+    onChange(novos);
+    calcularTotal(novos);
   }
 
   return (
@@ -301,6 +310,7 @@ export default function Combos() {
               unidade={form.unidade}
               selecionados={form.servicos}
               onChange={v => setForm(f => ({ ...f, servicos: v }))}
+              onValorChange={v => setForm(f => ({ ...f, valor: v }))}
             />
           </div>
 

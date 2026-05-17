@@ -694,7 +694,7 @@ const Cliente = {
     const params = [];
     if (unidade)               { conditions.push(`c.unidade = $${params.push(unidade)}`); }
     if (tipo)                  { conditions.push(`c.tipo = $${params.push(tipo)}`); }
-    if (busca)                 { conditions.push(`LOWER(c.nome) LIKE LOWER($${params.push('%' + busca + '%')})`); }
+    if (busca)                 { conditions.push(`c.nome ILIKE $${params.push('%' + busca + '%')}`); }
     if (barbeiro_responsavel_id) { conditions.push(`c.barbeiro_responsavel_id = $${params.push(Number(barbeiro_responsavel_id))}`); }
     return query(
       `SELECT c.*,

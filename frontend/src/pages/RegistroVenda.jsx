@@ -142,16 +142,16 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
     const v = e.target.value;
     onChange(v);
     clearTimeout(timer.current);
-    if (v.trim().length < 2) { setSugestoes([]); setAberto(false); return; }
+    if (v.trim().length < 1) { setSugestoes([]); setAberto(false); return; }
     setBuscando(true);
+    setAberto(true);
     timer.current = setTimeout(async () => {
       try {
-        const rows = await api.clientes({ busca: v.trim() });
+        const data = await api.clientes({ busca: v.trim() });
+        const rows = Array.isArray(data) ? data : (data?.rows ?? data?.clientes ?? []);
         setSugestoes(rows);
-        setAberto(true);
       } catch {
         setSugestoes([]);
-        setAberto(false);
       } finally {
         setBuscando(false);
       }
@@ -164,19 +164,20 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
     setSugestoes([]);
   }
 
-  const mostraDropdown = aberto && value.trim().length >= 2;
+  const mostraDropdown = aberto && value.trim().length >= 1;
 
   return (
-    <div ref={wrapper} className="relative">
+    <div ref={wrapper} className={`relative ${mostraDropdown ? 'z-[9999]' : ''}`}>
       <div className="relative">
         <input
           type="text"
           value={value}
           onChange={onInput}
-          onFocus={() => { if (value.trim().length >= 2) setAberto(true); }}
+          onFocus={() => { if (value.trim().length >= 1) setAberto(true); }}
           placeholder="Ex.: João Silva"
-          className="input-dark w-full pr-8"
+          className={`input-dark w-full ${buscando ? 'pr-8' : ''}`}
           required
+          autoComplete="off"
           pattern="[A-Za-zÀ-ÿ\s'\-]+"
           title="Somente letras e espaços"
           onKeyDown={e => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
@@ -187,8 +188,13 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
       </div>
 
       {mostraDropdown && (
-        <ul className="absolute w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl z-50 max-h-56 overflow-y-auto">
-          {sugestoes.length > 0 ? (
+        <ul className="absolute w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl z-[9999] max-h-56 overflow-y-auto">
+          {buscando ? (
+            <li className="px-4 py-3 flex items-center gap-2 text-gold-muted">
+              <RefreshCw size={12} className="animate-spin shrink-0" />
+              <span className="text-xs">Buscando…</span>
+            </li>
+          ) : sugestoes.length > 0 ? (
             sugestoes.map(c => (
               <li key={c.id}>
                 <button
@@ -203,7 +209,7 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
                 </button>
               </li>
             ))
-          ) : !buscando ? (
+          ) : (
             <li className="px-4 py-3 flex items-center justify-between gap-2">
               <p className="text-xs text-gold-muted">Nenhum cliente encontrado na base.</p>
               {onCadastrar ? (
@@ -212,13 +218,13 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
                   onMouseDown={onCadastrar}
                   className="flex items-center gap-1 text-xs text-gold hover:text-gold-light font-semibold shrink-0"
                 >
-                  <Plus size={12} /> Cadastrar
+                  <Tag size={12} /> Ativar Combo
                 </button>
               ) : (
                 <span className="text-[11px] text-amber-400/80 shrink-0">Solicite ao admin</span>
               )}
             </li>
-          ) : null}
+          )}
         </ul>
       )}
     </div>
@@ -228,23 +234,25 @@ function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) 
 // ─── Aba: Venda Normal ───────────────────────────────────────────────────────
 
 const FORM_INICIAL = {
-  profissional_id: '',
-  servico:         '',
-  valor:           '',
-  produto:         '',
-  produto_valor:   '',
-  produto_qtd:     1,
-  desconto:        '',
-  origens:         ['agendado'],
-  nome_cliente:    '',
-  qtd_clientes:    1,
-  data:            hojeISO(),
-  observacao:      '',
+  profissional_id:          '',
+  servico:                  '',
+  valor:                    '',
+  produto:                  '',
+  produto_valor:            '',
+  produto_qtd:              1,
+  desconto:                 '',
+  origens:                  ['agendado'],
+  nome_cliente:             '',
+  telefone_cliente:         '',
+  data_nascimento_cliente:  '',
+  qtd_clientes:             1,
+  data:                     hojeISO(),
+  observacao:               '',
 };
 
 const UPSELL_INICIAL = { servico: '', valor: '' };
 
-function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes }) {
+function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes, onAtivarCombo }) {
   const invalidarDashboard = useInvalidarDashboard();
 
   const [form,       setForm]       = useState(FORM_INICIAL);
@@ -284,7 +292,12 @@ function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes }) {
     setUpsell(u => ({ ...u, servico: nome, valor: parseFloat(preco).toFixed(2) }));
   }
   function onSelectCliente(c) {
-    setForm(f => ({ ...f, nome_cliente: c.nome }));
+    setForm(f => ({
+      ...f,
+      nome_cliente:            c.nome,
+      telefone_cliente:        c.contato ?? '',
+      data_nascimento_cliente: c.data_nascimento ? c.data_nascimento.slice(0, 10) : '',
+    }));
   }
 
   // ─── Cálculos em tempo real ───────────────────────────────────────────────
@@ -349,6 +362,8 @@ function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes }) {
         origem_cliente:  form.origens.find(o => ['whatsapp','indicacao'].includes(o)) ?? undefined,
         data:            form.data,
         nome_cliente:    form.nome_cliente.trim(),
+        ...(form.telefone_cliente.trim()        ? { telefone_cliente:        form.telefone_cliente.trim() }        : {}),
+        ...(form.data_nascimento_cliente        ? { data_nascimento_cliente: form.data_nascimento_cliente }        : {}),
         ...(form.observacao.trim() ? { observacao: form.observacao.trim() } : {}),
       };
 
@@ -468,8 +483,37 @@ function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes }) {
             value={form.nome_cliente}
             onChange={v => setForm(f => ({ ...f, nome_cliente: v }))}
             onSelectCliente={onSelectCliente}
-            onCadastrar={onIrParaClientes}
+            onCadastrar={onAtivarCombo ? () => onAtivarCombo(form.nome_cliente) : onIrParaClientes}
           />
+        </div>
+
+        {/* Telefone + Data de Nascimento do cliente (opcionais — atualizados no cadastro ao fechar venda) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Telefone <span className="normal-case text-gold-muted/50">(opcional)</span>
+            </label>
+            <input
+              type="tel"
+              name="telefone_cliente"
+              value={form.telefone_cliente}
+              onChange={onChange}
+              placeholder="(11) 99999-9999"
+              className="input-dark w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Nascimento <span className="normal-case text-gold-muted/50">(opcional)</span>
+            </label>
+            <input
+              type="date"
+              name="data_nascimento_cliente"
+              value={form.data_nascimento_cliente}
+              onChange={onChange}
+              className="input-dark w-full"
+            />
+          </div>
         </div>
 
         {/* Serviço */}
@@ -786,7 +830,7 @@ const COMBO_FORM_INICIAL = {
   profissional_id: '',
 };
 
-function AbaCombo({ barbeiros, catalogo, user }) {
+function AbaCombo({ barbeiros, catalogo, user, buscaInicial }) {
   const invalidarDashboard = useInvalidarDashboard();
 
   const [busca,          setBusca]          = useState('');
@@ -802,22 +846,33 @@ function AbaCombo({ barbeiros, catalogo, user }) {
     i.categoria === 'combo' || i.nome.toLowerCase().includes('combo novo')
   );
 
-  async function buscarCombo(e) {
-    e.preventDefault();
-    if (!busca.trim() || busca.trim().length < 2) return;
+  async function buscarComboPorNome(nome) {
+    if (!nome || nome.trim().length < 2) return;
     setBuscando(true);
     setCombo(undefined);
     setErro(null);
     setSucesso(null);
     setAlterarPlano(false);
     try {
-      const resultado = await api.buscarCombo({ nome: busca.trim() });
+      const resultado = await api.buscarCombo({ nome: nome.trim() });
       setCombo(resultado);
     } catch (err) {
       setErro(err.message);
     } finally {
       setBuscando(false);
     }
+  }
+
+  useEffect(() => {
+    if (buscaInicial && buscaInicial.trim().length >= 2) {
+      setBusca(buscaInicial);
+      buscarComboPorNome(buscaInicial);
+    }
+  }, [buscaInicial]);
+
+  async function buscarCombo(e) {
+    e.preventDefault();
+    buscarComboPorNome(busca);
   }
 
   function onChangeForm(e) {
@@ -1143,9 +1198,15 @@ function AbaCombo({ barbeiros, catalogo, user }) {
 
 export default function RegistroVenda({ onIrParaClientes }) {
   const { user } = useAuth();
-  const [aba,       setAba]       = useState('venda');
-  const [barbeiros, setBarbeiros] = useState([]);
-  const [catalogo,  setCatalogo]  = useState([]);
+  const [aba,               setAba]               = useState('venda');
+  const [buscaComboInicial, setBuscaComboInicial] = useState('');
+  const [barbeiros,         setBarbeiros]         = useState([]);
+  const [catalogo,          setCatalogo]          = useState([]);
+
+  function irParaCombosComNome(nome) {
+    setBuscaComboInicial(nome || '');
+    setAba('combo');
+  }
 
   useEffect(() => {
     if (user?.unidade) {
@@ -1188,8 +1249,8 @@ export default function RegistroVenda({ onIrParaClientes }) {
         ))}
       </div>
 
-      {aba === 'venda' && <AbaVenda barbeiros={barbeiros} catalogo={catalogo} user={user} onIrParaClientes={onIrParaClientes} />}
-      {aba === 'combo' && <AbaCombo barbeiros={barbeiros} catalogo={catalogo} user={user} />}
+      {aba === 'venda' && <AbaVenda barbeiros={barbeiros} catalogo={catalogo} user={user} onIrParaClientes={onIrParaClientes} onAtivarCombo={irParaCombosComNome} />}
+      {aba === 'combo' && <AbaCombo barbeiros={barbeiros} catalogo={catalogo} user={user} buscaInicial={buscaComboInicial} />}
     </main>
   );
 }
