@@ -85,6 +85,33 @@ const ALTER_VENDAS_TIPO_ITEM = `
     ADD COLUMN IF NOT EXISTS tipo_item VARCHAR(10) NOT NULL DEFAULT 'servico';
 `;
 
+// Comissão split por categoria — base de cálculo = valor bruto (valor + desconto)
+const ALTER_VENDAS_COMISSAO_SPLIT = `
+  ALTER TABLE vendas
+    ADD COLUMN IF NOT EXISTS comissao_servico NUMERIC(10,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS comissao_produto NUMERIC(10,2) NOT NULL DEFAULT 0;
+`;
+
+// Backfill idempotente: recalcula comissao_servico/produto para linhas já gravadas
+// que ainda estejam zeradas. Profissionais com percentual_comissao = 0 (ex.: Thieco) são ignorados.
+const BACKFILL_COMISSAO_SPLIT = `
+  UPDATE vendas v
+  SET
+    comissao_servico = CASE
+      WHEN v.tipo_item != 'produto' THEN ROUND((v.valor + COALESCE(v.desconto, 0)) * 0.40, 2)
+      ELSE 0
+    END,
+    comissao_produto = CASE
+      WHEN v.tipo_item = 'produto' THEN ROUND((v.valor + COALESCE(v.desconto, 0)) * 0.10, 2)
+      ELSE 0
+    END
+  FROM profissionais p
+  WHERE v.profissional_id = p.id
+    AND p.percentual_comissao > 0
+    AND v.comissao_servico = 0
+    AND v.comissao_produto = 0;
+`;
+
 const UPDATE_THIECO_COMISSAO_ZERO = `
   UPDATE profissionais SET percentual_comissao = 0
   WHERE nome = 'Thieco Leandro' AND unidade = 'tambore';
@@ -500,6 +527,8 @@ async function runMigrations() {
     await query(ALTER_VENDAS_INTEL);
     await query(ALTER_GASTOS_VALOR_PREVISTO);
     await query(ALTER_VENDAS_TIPO_ITEM);
+    await query(ALTER_VENDAS_COMISSAO_SPLIT);
+    await query(BACKFILL_COMISSAO_SPLIT);
     await query(UPDATE_THIECO_COMISSAO_ZERO);
     await query(CREATE_COMBOS);
     await query(CREATE_CLIENTES);
@@ -583,15 +612,19 @@ const Venda = {
       params
     );
   },
-  create: ({ unidade, profissional_id, servico, valor, comissao, forma_pagamento, data, observacao, importado,
+  create: ({ unidade, profissional_id, servico, valor, comissao, comissao_servico, comissao_produto,
+             forma_pagamento, data, observacao, importado,
              desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
              nome_cliente, origem_cliente, bandeira_cartao, valor_liquido, tipo_item }) =>
     query(
-      `INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, forma_pagamento, data, observacao, importado,
+      `INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, comissao_servico, comissao_produto,
+                           forma_pagamento, data, observacao, importado,
                            desconto, tipo_cliente, upsell, venda_origem_id, qtd_clientes,
                            nome_cliente, origem_cliente, bandeira_cartao, valor_liquido, tipo_item)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
-      [unidade, profissional_id, servico, valor, comissao ?? 0, forma_pagamento ?? 'dinheiro', data,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,
+      [unidade, profissional_id, servico, valor,
+       comissao ?? 0, comissao_servico ?? 0, comissao_produto ?? 0,
+       forma_pagamento ?? 'dinheiro', data,
        observacao ?? null, importado ?? false,
        desconto ?? 0, tipo_cliente ?? 'agendado', upsell ?? false, venda_origem_id ?? null, qtd_clientes ?? 1,
        nome_cliente ?? null, origem_cliente ?? null, bandeira_cartao ?? null, valor_liquido ?? null,

@@ -20,6 +20,7 @@ const periodoValidators = [
   qv('inicio').optional({ values: 'falsy' }).isDate(),
   qv('fim').optional({ values: 'falsy' }).isDate(),
   qv('unidade').optional().isIn(['tambore', 'mutinga']),
+  qv('profissional_id').optional({ values: 'falsy' }).isInt({ min: 1 }),
 ];
 
 function toNum(v) { return parseFloat(v ?? 0); }
@@ -63,16 +64,19 @@ END`;
 // ─── Fluxo de Caixa — admin ───────────────────────────────────────────────────
 router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async (req, res) => {
   const { inicio, fim, unidade } = resolverPeriodo(req.query);
-  const unidadeFiltro = unidade ? `AND unidade = '${unidade}'` : '';
+  const profId = req.query.profissional_id ? parseInt(req.query.profissional_id) : null;
+
+  const uf   = unidade ? `AND unidade = '${unidade}'`         : '';
+  const pfv  = profId  ? `AND profissional_id = ${profId}`    : '';
 
   try {
     const entradasQ = await query(`
       SELECT data, unidade,
-        SUM(valor)    AS total_bruto,
-        SUM(comissao) AS total_comissao,
-        COUNT(*)      AS qtd_vendas
+        SUM(valor)                                               AS total_bruto,
+        SUM(comissao)                                            AS total_comissao,
+        COUNT(DISTINCT COALESCE(venda_origem_id, id))            AS qtd_vendas
       FROM vendas
-      WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      WHERE data BETWEEN $1 AND $2 ${uf} ${pfv}
       GROUP BY data, unidade ORDER BY data
     `, [inicio, fim]);
 
@@ -81,47 +85,62 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
         SUM(valor) AS total_gastos,
         COUNT(*)   AS qtd_gastos
       FROM gastos
-      WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      WHERE data BETWEEN $1 AND $2 ${uf}
       GROUP BY data, unidade ORDER BY data
     `, [inicio, fim]);
 
     const totaisEntrada = await query(`
-      SELECT SUM(valor) AS receita_bruta, SUM(comissao) AS total_comissoes, SUM(desconto) AS total_descontos
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      SELECT
+        SUM(valor)             AS receita_bruta,
+        SUM(comissao_servico)  AS total_comissao_servico,
+        SUM(comissao_produto)  AS total_comissao_produto,
+        SUM(comissao)          AS total_comissoes,
+        SUM(desconto)          AS total_descontos,
+        COUNT(DISTINCT COALESCE(venda_origem_id, id)) AS total_atendimentos
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pfv}
     `, [inicio, fim]);
 
     const totaisSaida = await query(`
       SELECT SUM(valor) AS total_gastos FROM gastos
-      WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      WHERE data BETWEEN $1 AND $2 ${uf}
     `, [inicio, fim]);
 
     const taxaQ = await query(`
       SELECT COALESCE(ROUND(SUM(${TAXA_SQL_CASE}), 2), 0) AS taxa_pagbank
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pfv}
     `, [inicio, fim]);
 
-    const receitaBruta    = toNum(totaisEntrada.rows[0].receita_bruta);
-    const totalComissoes  = toNum(totaisEntrada.rows[0].total_comissoes);
-    const totalDescontos  = toNum(totaisEntrada.rows[0].total_descontos);
-    const totalGastos     = toNum(totaisSaida.rows[0].total_gastos);
-    const taxaPagBank     = toNum(taxaQ.rows[0].taxa_pagbank);
-    const receitaLiquida  = receitaBruta - totalComissoes;
-    const saldoPeriodo    = receitaLiquida - taxaPagBank - totalGastos;
-    const pctDesconto     = (receitaBruta + totalDescontos) > 0
+    const r = totaisEntrada.rows[0];
+    const receitaBruta   = toNum(r.receita_bruta);
+    const totalComissoes = toNum(r.total_comissoes);
+    const totalDescontos = toNum(r.total_descontos);
+    const atendimentos   = parseInt(r.total_atendimentos || 0);
+    const totalGastos    = toNum(totaisSaida.rows[0].total_gastos);
+    const taxaPagBank    = toNum(taxaQ.rows[0].taxa_pagbank);
+    const receitaLiquida = receitaBruta - totalComissoes;
+    const saldoPeriodo   = receitaLiquida - taxaPagBank - totalGastos;
+    const pctDesconto    = (receitaBruta + totalDescontos) > 0
       ? parseFloat(((totalDescontos / (receitaBruta + totalDescontos)) * 100).toFixed(2))
+      : 0;
+    const ticketMedio    = atendimentos > 0
+      ? parseFloat((receitaBruta / atendimentos).toFixed(2))
       : 0;
 
     res.json({
-      periodo: { inicio, fim, unidade: unidade ?? 'todas' },
+      periodo: { inicio, fim, unidade: unidade ?? 'todas', profissional_id: profId },
       totais: {
-        receita_bruta:   receitaBruta,
-        total_comissoes: totalComissoes,
-        receita_liquida: receitaLiquida,
-        taxa_pagbank:    taxaPagBank,
-        total_gastos:    totalGastos,
-        saldo_periodo:   saldoPeriodo,
-        total_descontos: totalDescontos,
-        pct_desconto:    pctDesconto,
+        receita_bruta:          receitaBruta,
+        total_comissoes:        totalComissoes,
+        total_comissao_servico: toNum(r.total_comissao_servico),
+        total_comissao_produto: toNum(r.total_comissao_produto),
+        receita_liquida:        receitaLiquida,
+        taxa_pagbank:           taxaPagBank,
+        total_gastos:           totalGastos,
+        saldo_periodo:          saldoPeriodo,
+        total_descontos:        totalDescontos,
+        pct_desconto:           pctDesconto,
+        atendimentos,
+        ticket_medio:           ticketMedio,
       },
       entradas_por_dia: entradasQ.rows,
       saidas_por_dia:   saidasQ.rows,
@@ -134,58 +153,77 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
 // ─── DRE — admin ─────────────────────────────────────────────────────────────
 router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, res) => {
   const { inicio, fim, unidade } = resolverPeriodo(req.query);
-  const unidadeFiltro = unidade ? `AND unidade = '${unidade}'` : '';
+  const profId = req.query.profissional_id ? parseInt(req.query.profissional_id) : null;
+
+  const uf   = unidade ? `AND unidade = '${unidade}'`      : '';
+  const ufv  = unidade ? `AND v.unidade = '${unidade}'`    : '';
+  const pfv  = profId  ? `AND v.profissional_id = ${profId}` : '';
+  const pf   = profId  ? `AND profissional_id = ${profId}` : '';
 
   try {
     const receitasPorServico = await query(`
-      SELECT servico, unidade, COUNT(*) AS qtd, SUM(valor) AS total_bruto, SUM(comissao) AS total_comissao
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      SELECT servico, unidade,
+        COUNT(DISTINCT COALESCE(venda_origem_id, id)) AS qtd,
+        SUM(valor) AS total_bruto,
+        SUM(comissao_servico) AS comissao_servico,
+        SUM(comissao_produto) AS comissao_produto,
+        SUM(comissao) AS total_comissao
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pf}
       GROUP BY servico, unidade ORDER BY total_bruto DESC
     `, [inicio, fim]);
 
     const receitasPorPagamento = await query(`
       SELECT forma_pagamento, unidade, COUNT(*) AS qtd, SUM(valor) AS total
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pf}
       GROUP BY forma_pagamento, unidade ORDER BY total DESC
     `, [inicio, fim]);
 
     const gastosPorCategoria = await query(`
       SELECT categoria, unidade, COUNT(*) AS qtd, SUM(valor) AS total
-      FROM gastos WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      FROM gastos WHERE data BETWEEN $1 AND $2 ${uf}
       GROUP BY categoria, unidade ORDER BY total DESC
     `, [inicio, fim]);
 
     const comissoesPorProfissional = await query(`
-      SELECT p.nome AS profissional, v.unidade, COUNT(*) AS qtd_atendimentos,
-             SUM(v.valor) AS faturamento_gerado, SUM(v.comissao) AS comissao_total
+      SELECT p.nome AS profissional, v.unidade,
+        COUNT(DISTINCT COALESCE(v.venda_origem_id, v.id)) AS qtd_atendimentos,
+        SUM(v.valor)            AS faturamento_gerado,
+        SUM(v.comissao_servico) AS comissao_servico,
+        SUM(v.comissao_produto) AS comissao_produto,
+        SUM(v.comissao)         AS comissao_total
       FROM vendas v LEFT JOIN profissionais p ON p.id = v.profissional_id AND p.ativo = true
-      WHERE v.data BETWEEN $1 AND $2 ${unidadeFiltro.replace(/unidade/g, 'v.unidade')}
+      WHERE v.data BETWEEN $1 AND $2 ${ufv} ${pfv}
       GROUP BY p.nome, v.unidade ORDER BY faturamento_gerado DESC
     `, [inicio, fim]);
 
     const totaisV = await query(`
-      SELECT SUM(valor) AS receita_bruta, SUM(comissao) AS comissoes
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      SELECT SUM(valor)            AS receita_bruta,
+             SUM(comissao_servico) AS comissao_servico,
+             SUM(comissao_produto) AS comissao_produto,
+             SUM(comissao)         AS comissoes,
+             COUNT(DISTINCT COALESCE(venda_origem_id, id)) AS atendimentos
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pf}
     `, [inicio, fim]);
 
     const totaisG = await query(`
       SELECT SUM(valor) AS gastos_totais FROM gastos
-      WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+      WHERE data BETWEEN $1 AND $2 ${uf}
     `, [inicio, fim]);
 
-    // Taxa de intermediação PagBank por forma de pagamento
     const taxaDetalheQ = await query(`
       SELECT forma_pagamento,
-        COUNT(*)::int                                            AS qtd,
-        ROUND(SUM(valor), 2)                                    AS volume,
-        ROUND(SUM(${TAXA_SQL_CASE}), 2)                         AS taxa,
-        ROUND(SUM(${TAXA_SQL_CASE}) / NULLIF(SUM(valor),0)*100, 2) AS taxa_pct_efetiva
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${unidadeFiltro}
+        COUNT(*)::int                                                AS qtd,
+        ROUND(SUM(valor), 2)                                         AS volume,
+        ROUND(SUM(${TAXA_SQL_CASE}), 2)                              AS taxa,
+        ROUND(SUM(${TAXA_SQL_CASE}) / NULLIF(SUM(valor),0)*100, 2)  AS taxa_pct_efetiva
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pf}
       GROUP BY forma_pagamento ORDER BY volume DESC
     `, [inicio, fim]);
 
-    const receitaBruta         = toNum(totaisV.rows[0].receita_bruta);
-    const totalComissoes       = toNum(totaisV.rows[0].comissoes);
+    const tv = totaisV.rows[0];
+    const receitaBruta         = toNum(tv.receita_bruta);
+    const totalComissoes       = toNum(tv.comissoes);
+    const atendimentos         = parseInt(tv.atendimentos || 0);
     const gastosTotais         = toNum(totaisG.rows[0].gastos_totais);
     const taxaPagBank          = taxaDetalheQ.rows.reduce((s, r) => s + toNum(r.taxa), 0);
     const receitaLiquida       = receitaBruta - totalComissoes - taxaPagBank;
@@ -193,17 +231,24 @@ router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, re
     const margemBruta          = receitaBruta > 0
       ? parseFloat(((resultadoOperacional / receitaBruta) * 100).toFixed(2))
       : 0;
+    const ticketMedio          = atendimentos > 0
+      ? parseFloat((receitaBruta / atendimentos).toFixed(2))
+      : 0;
 
     res.json({
-      periodo: { inicio, fim, unidade: unidade ?? 'todas' },
+      periodo: { inicio, fim, unidade: unidade ?? 'todas', profissional_id: profId },
       dre: {
         '1_receita_bruta':         receitaBruta,
         '2_deducoes_comissoes':    -totalComissoes,
+        '2a_comissao_servico':     -toNum(tv.comissao_servico),
+        '2b_comissao_produto':     -toNum(tv.comissao_produto),
         '3_taxa_pagbank':          -parseFloat(taxaPagBank.toFixed(2)),
         '4_receita_liquida':       receitaLiquida,
         '5_gastos_operacionais':   -gastosTotais,
         '6_resultado_operacional': resultadoOperacional,
         '7_margem_bruta_pct':      margemBruta,
+        '8_atendimentos':          atendimentos,
+        '9_ticket_medio':          ticketMedio,
       },
       detalhes: {
         receitas_por_servico:         receitasPorServico.rows,
@@ -221,7 +266,10 @@ router.get('/dre', authenticate, requireAdmin, periodoValidators, async (req, re
 // ─── Comissões — todos (com mascaramento para barbeiros) ──────────────────────
 router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
   const { inicio, fim, unidade } = resolverPeriodo(req.query);
-  const unidadeFiltro = unidade ? `AND v.unidade = '${unidade}'` : '';
+  const profId = req.query.profissional_id ? parseInt(req.query.profissional_id) : null;
+
+  const ufv = unidade ? `AND v.unidade = '${unidade}'`      : '';
+  const pfv = profId  ? `AND v.profissional_id = ${profId}` : '';
 
   try {
     const { rows } = await query(`
@@ -230,13 +278,17 @@ router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
         p.nome,
         p.percentual_comissao,
         v.unidade,
-        COUNT(v.id)            AS qtd_atendimentos,
-        SUM(v.valor)           AS faturamento_bruto,
-        SUM(v.comissao)        AS comissao_total,
-        ROUND(AVG(v.valor), 2) AS ticket_medio
+        COUNT(DISTINCT COALESCE(v.venda_origem_id, v.id))   AS qtd_atendimentos,
+        SUM(v.valor)                                         AS faturamento_bruto,
+        SUM(v.comissao_servico)                              AS comissao_servico,
+        SUM(v.comissao_produto)                              AS comissao_produto,
+        SUM(v.comissao)                                      AS comissao_total,
+        ROUND(
+          SUM(v.valor) / NULLIF(COUNT(DISTINCT COALESCE(v.venda_origem_id, v.id)), 0),
+        2)                                                   AS ticket_medio
       FROM vendas v
       INNER JOIN profissionais p ON p.id = v.profissional_id AND p.ativo = true
-      WHERE v.data BETWEEN $1 AND $2 ${unidadeFiltro}
+      WHERE v.data BETWEEN $1 AND $2 ${ufv} ${pfv}
       GROUP BY p.id, p.nome, p.percentual_comissao, v.unidade
       ORDER BY faturamento_bruto DESC
     `, [inicio, fim]);
@@ -257,6 +309,8 @@ router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
         posicao:              idx + 1,
         qtd_atendimentos:     null,
         faturamento_bruto:    null,
+        comissao_servico:     null,
+        comissao_produto:     null,
         comissao_total:       null,
         ticket_medio:         null,
         percentual_comissao:  null,
@@ -264,7 +318,10 @@ router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
       };
     });
 
-    res.json({ periodo: { inicio, fim, unidade: unidade ?? 'todas' }, comissoes });
+    res.json({
+      periodo: { inicio, fim, unidade: unidade ?? 'todas', profissional_id: profId },
+      comissoes,
+    });
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
@@ -273,18 +330,22 @@ router.get('/comissoes', authenticate, periodoValidators, async (req, res) => {
 // ─── Inteligência Financeira — admin ─────────────────────────────────────────
 router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async (req, res) => {
   const { inicio, fim, unidade } = resolverPeriodo(req.query);
-  const uf  = unidade ? `AND unidade = '${unidade}'`   : '';
-  const ufv = unidade ? `AND v.unidade = '${unidade}'` : '';
+  const profId = req.query.profissional_id ? parseInt(req.query.profissional_id) : null;
+
+  const uf  = unidade ? `AND unidade = '${unidade}'`      : '';
+  const ufv = unidade ? `AND v.unidade = '${unidade}'`    : '';
+  const pfv = profId  ? `AND v.profissional_id = ${profId}` : '';
+  const pf  = profId  ? `AND profissional_id = ${profId}` : '';
 
   try {
     // ── 1. Vendas diárias agrupadas (para projeção no frontend) ───────────────
     const vendasDiarias = await query(`
       SELECT data::text, ROUND(SUM(valor), 2) AS total
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf}
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pf}
       GROUP BY data ORDER BY data
     `, [inicio, fim]);
 
-    // ── 2. Break-even ─────────────────────────────────────────────────────────
+    // ── 2. Break-even (sempre sobre o total da unidade, sem filtro de profissional) ──
     const gastosTotaisQ = await query(`
       SELECT COALESCE(ROUND(SUM(valor), 2), 0) AS total
       FROM gastos WHERE data BETWEEN $1 AND $2 ${uf}
@@ -293,7 +354,7 @@ router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async
     const faturamentoCumulativo = await query(`
       SELECT data::text,
              ROUND(SUM(SUM(valor)) OVER (ORDER BY data), 2) AS acumulado
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf}
+      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pf}
       GROUP BY data ORDER BY data
     `, [inicio, fim]);
 
@@ -303,7 +364,6 @@ router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async
       ? toNum(rows_fat[rows_fat.length - 1].acumulado)
       : 0;
 
-    // Dia em que o faturamento acumulado cobriu os gastos
     let diaBreakEven = null;
     for (const row of rows_fat) {
       if (toNum(row.acumulado) >= gastosTotais && gastosTotais > 0) {
@@ -312,7 +372,6 @@ router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async
       }
     }
 
-    // Projeção do break-even futuro (se não atingiu)
     let diaBreakEvenProjetado = null;
     if (!diaBreakEven && rows_fat.length > 0 && gastosTotais > 0) {
       const mediaDiaria = faturamentoAtual / rows_fat.length;
@@ -328,27 +387,32 @@ router.get('/inteligencia', authenticate, requireAdmin, periodoValidators, async
     // ── 3. Ticket médio por barbeiro ──────────────────────────────────────────
     const ticketBarbeiros = await query(`
       SELECT p.id, p.nome, p.unidade,
-             COUNT(v.id)::int              AS qtd_atendimentos,
-             ROUND(AVG(v.valor), 2)        AS ticket_medio,
-             ROUND(SUM(v.valor), 2)        AS faturamento_bruto,
-             ROUND(SUM(v.comissao), 2)     AS comissao_total
+        COUNT(DISTINCT COALESCE(v.venda_origem_id, v.id))::int   AS qtd_atendimentos,
+        ROUND(
+          SUM(v.valor) / NULLIF(COUNT(DISTINCT COALESCE(v.venda_origem_id, v.id)), 0),
+        2)                                                         AS ticket_medio,
+        ROUND(SUM(v.valor), 2)                                     AS faturamento_bruto,
+        ROUND(SUM(v.comissao_servico), 2)                          AS comissao_servico,
+        ROUND(SUM(v.comissao_produto), 2)                          AS comissao_produto,
+        ROUND(SUM(v.comissao), 2)                                  AS comissao_total
       FROM vendas v
       INNER JOIN profissionais p ON p.id = v.profissional_id AND p.ativo = true
-      WHERE v.data BETWEEN $1 AND $2 ${ufv}
+      WHERE v.data BETWEEN $1 AND $2 ${ufv} ${pfv}
       GROUP BY p.id, p.nome, p.unidade
       ORDER BY ticket_medio DESC NULLS LAST
     `, [inicio, fim]);
 
     res.json({
+      periodo: { inicio, fim, unidade: unidade ?? 'todas', profissional_id: profId },
       break_even: {
-        gastos_totais:           gastosTotais,
-        faturamento_atual:       faturamentoAtual,
-        percentual_cobertura:    gastosTotais > 0
+        gastos_totais:            gastosTotais,
+        faturamento_atual:        faturamentoAtual,
+        percentual_cobertura:     gastosTotais > 0
           ? parseFloat(((faturamentoAtual / gastosTotais) * 100).toFixed(1))
           : 100,
-        dia_break_even:          diaBreakEven,
+        dia_break_even:           diaBreakEven,
         dia_break_even_projetado: diaBreakEvenProjetado,
-        ja_atingiu:              faturamentoAtual >= gastosTotais && gastosTotais > 0,
+        ja_atingiu:               faturamentoAtual >= gastosTotais && gastosTotais > 0,
       },
       ticket_medio_barbeiros: ticketBarbeiros.rows,
       vendas_por_dia:         vendasDiarias.rows,

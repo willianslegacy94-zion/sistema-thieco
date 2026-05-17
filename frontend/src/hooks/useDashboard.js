@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useSWRConfig } from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { useAuth } from '../contexts/AuthContext';
 import { useBarbeariaData, isValidDate } from './useBarbeariaData';
+import { api } from '../lib/api';
 
 // ─── Helpers de data ──────────────────────────────────────────────────────────
 
@@ -59,10 +60,19 @@ export function useDashboard() {
   const { mutate } = useSWRConfig();
 
   const [filtros, setFiltros] = useState({
-    inicio:  hojeISO(),
-    fim:     hojeISO(),
-    unidade: '',
+    inicio:         hojeISO(),
+    fim:            hojeISO(),
+    unidade:        '',
+    profissional_id: '',
   });
+
+  // Lista de profissionais para o seletor de barbeiro (apenas admin, cache longo)
+  const { data: profissionaisRaw } = useSWR(
+    isAdmin ? 'profissionais-list' : null,
+    () => api.profissionais(),
+    { revalidateOnFocus: false, dedupingInterval: 120_000 },
+  );
+  const profissionais = profissionaisRaw ?? [];
 
   // Busca dados via SWR (polling 3s + revalidateOnFocus + keepPreviousData)
   const { fluxo, dre, comissoes, loading, erro } = useBarbeariaData(filtros);
@@ -89,5 +99,5 @@ export function useDashboard() {
     mutate(key => Array.isArray(key) && ['fluxo-caixa', 'dre', 'comissoes'].includes(key[0]));
   }, [mutate]);
 
-  return { dados, loading, erro, filtros, setFiltros, recarregar };
+  return { dados, loading, erro, filtros, setFiltros, recarregar, profissionais };
 }

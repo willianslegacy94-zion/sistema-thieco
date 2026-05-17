@@ -30,13 +30,19 @@ function calcularValorLiquido(valor, forma_pagamento) {
   return parseFloat((valor * (1 - taxa)).toFixed(2));
 }
 
-async function calcularComissao(profissional_id, valor, tipo_item = 'servico') {
-  if (!profissional_id) return 0;
+// Comissão sempre calculada sobre o valor bruto (valor de tabela, ignorando desconto).
+// Retorna objeto { comissao, comissao_servico, comissao_produto } para persistência separada.
+async function calcularComissao(profissional_id, valor, desconto = 0, tipo_item = 'servico') {
+  const zero = { comissao: 0, comissao_servico: 0, comissao_produto: 0 };
+  if (!profissional_id) return zero;
   const { rows } = await Profissional.findById(profissional_id);
-  if (!rows.length) return 0;
-  if (parseFloat(rows[0].percentual_comissao) === 0) return 0;
-  const pct = tipo_item === 'produto' ? 10 : 40;
-  return parseFloat(((pct / 100) * valor).toFixed(2));
+  if (!rows.length) return zero;
+  if (parseFloat(rows[0].percentual_comissao) === 0) return zero;
+
+  const valorBruto = parseFloat(valor) + parseFloat(desconto || 0);
+  const comissao_servico = tipo_item !== 'produto' ? parseFloat(((40 / 100) * valorBruto).toFixed(2)) : 0;
+  const comissao_produto = tipo_item === 'produto'  ? parseFloat(((10 / 100) * valorBruto).toFixed(2)) : 0;
+  return { comissao: comissao_servico + comissao_produto, comissao_servico, comissao_produto };
 }
 
 // GET /vendas — admin vê tudo; barbeiro vê apenas as próprias
@@ -113,17 +119,24 @@ router.post('/',
       } = req.body;
 
       const tipoItem = tipo_item ?? 'servico';
+      const descontoVal = parseFloat(desconto ?? 0);
 
-      const comissao = req.body.comissao !== undefined
-        ? parseFloat(req.body.comissao)
-        : await calcularComissao(profissional_id, parseFloat(valor), tipoItem);
+      let comissao, comissao_servico, comissao_produto;
+      if (req.body.comissao !== undefined) {
+        comissao = parseFloat(req.body.comissao);
+        comissao_servico = tipoItem !== 'produto' ? comissao : 0;
+        comissao_produto = tipoItem === 'produto'  ? comissao : 0;
+      } else {
+        ({ comissao, comissao_servico, comissao_produto } =
+          await calcularComissao(profissional_id, parseFloat(valor), descontoVal, tipoItem));
+      }
 
       const valor_liquido = calcularValorLiquido(parseFloat(valor), forma_pagamento ?? 'dinheiro');
 
       const { rows } = await Venda.create({
         unidade, profissional_id: profissional_id ?? null,
-        servico, valor, comissao, forma_pagamento, data, observacao,
-        desconto: desconto ?? 0,
+        servico, valor, comissao, comissao_servico, comissao_produto, forma_pagamento, data, observacao,
+        desconto: descontoVal,
         tipo_cliente: tipo_cliente ?? 'agendado',
         upsell: upsell ?? false,
         venda_origem_id: venda_origem_id ?? null,
@@ -224,12 +237,17 @@ router.put('/:id',
         }
       }
 
-      if (req.body.valor !== undefined || req.body.profissional_id !== undefined || req.body.tipo_item !== undefined) {
-        const novoValor    = req.body.valor           !== undefined ? parseFloat(req.body.valor) : parseFloat(venda.valor);
-        const novoProfId   = req.body.profissional_id !== undefined ? req.body.profissional_id   : venda.profissional_id;
-        const novoTipo     = req.body.tipo_item       !== undefined ? req.body.tipo_item          : (venda.tipo_item ?? 'servico');
-        const novaComissao = await calcularComissao(novoProfId, novoValor, novoTipo);
+      if (req.body.valor !== undefined || req.body.profissional_id !== undefined ||
+          req.body.tipo_item !== undefined || req.body.desconto !== undefined) {
+        const novoValor    = req.body.valor           !== undefined ? parseFloat(req.body.valor)   : parseFloat(venda.valor);
+        const novoDesconto = req.body.desconto        !== undefined ? parseFloat(req.body.desconto) : parseFloat(venda.desconto ?? 0);
+        const novoProfId   = req.body.profissional_id !== undefined ? req.body.profissional_id      : venda.profissional_id;
+        const novoTipo     = req.body.tipo_item       !== undefined ? req.body.tipo_item             : (venda.tipo_item ?? 'servico');
+        const { comissao: novaComissao, comissao_servico, comissao_produto } =
+          await calcularComissao(novoProfId, novoValor, novoDesconto, novoTipo);
         sets.push(`comissao = $${params.push(novaComissao)}`);
+        sets.push(`comissao_servico = $${params.push(comissao_servico)}`);
+        sets.push(`comissao_produto = $${params.push(comissao_produto)}`);
       }
 
       if (req.body.valor !== undefined || req.body.forma_pagamento !== undefined) {

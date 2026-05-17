@@ -37,19 +37,24 @@ const CACHE_KEYS = ['fluxo-caixa', 'dre', 'comissoes', 'vendas', 'combos'];
 export function useBarbeariaData(filtros) {
   const { isAdmin } = useAuth();
 
-  const inicio  = filtros?.inicio  ?? '';
-  const fim     = filtros?.fim     ?? '';
-  const unidade = filtros?.unidade ?? '';
+  const inicio        = filtros?.inicio          ?? '';
+  const fim           = filtros?.fim             ?? '';
+  const unidade       = filtros?.unidade         ?? '';
+  const profissionalId = filtros?.profissional_id ?? '';
 
   const datesOk = isValidDate(inicio) && isValidDate(fim);
   const params  = datesOk
-    ? { inicio, fim, ...(unidade ? { unidade } : {}) }
+    ? {
+        inicio, fim,
+        ...(unidade        ? { unidade }                        : {}),
+        ...(profissionalId ? { profissional_id: profissionalId } : {}),
+      }
     : null;
 
   // null desativa o fetch enquanto as datas são inválidas
-  const keyFluxo     = isAdmin && params ? ['fluxo-caixa', inicio, fim, unidade] : null;
-  const keyDre       = isAdmin && params ? ['dre',          inicio, fim, unidade] : null;
-  const keyComissoes =             params ? ['comissoes',    inicio, fim, unidade] : null;
+  const keyFluxo     = isAdmin && params ? ['fluxo-caixa', inicio, fim, unidade, profissionalId] : null;
+  const keyDre       = isAdmin && params ? ['dre',          inicio, fim, unidade, profissionalId] : null;
+  const keyComissoes =             params ? ['comissoes',    inicio, fim, unidade, profissionalId] : null;
 
   const { data: fluxo,     isLoading: l1, error: e1 } = useSWR(
     keyFluxo,

@@ -8,7 +8,7 @@ const UNIDADES = [
   { value: 'mutinga',  label: 'Mutinga' },
 ];
 
-export default function FilterBar({ filtros, onChange, onRecarregar, loading }) {
+export default function FilterBar({ filtros, onChange, onRecarregar, loading, profissionais }) {
   const [localInicio, setLocalInicio] = useState(filtros.inicio);
   const [localFim,    setLocalFim]    = useState(filtros.fim);
 
@@ -68,6 +68,20 @@ export default function FilterBar({ filtros, onChange, onRecarregar, loading }) 
           <option key={u.value} value={u.value}>{u.label}</option>
         ))}
       </select>
+
+      {/* Barbeiro — apenas quando o pai fornecer a lista */}
+      {profissionais && profissionais.length > 0 && (
+        <select
+          className="input-dark w-full sm:w-auto"
+          value={filtros.profissional_id ?? ''}
+          onChange={(e) => onChange({ ...filtros, profissional_id: e.target.value })}
+        >
+          <option value="">Todos os Barbeiros</option>
+          {profissionais.map((p) => (
+            <option key={p.id} value={p.id}>{p.nome}</option>
+          ))}
+        </select>
+      )}
 
       {/* Recarregar */}
       <button

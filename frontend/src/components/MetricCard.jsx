@@ -6,7 +6,11 @@ function fmt(v) {
   }).format(v ?? 0);
 }
 
-export default function MetricCard({ titulo, valor, sub, icon: Icon, variante = 'default', loading }) {
+function fmtInt(v) {
+  return new Intl.NumberFormat('pt-BR').format(Math.round(v ?? 0));
+}
+
+export default function MetricCard({ titulo, valor, sub, icon: Icon, variante = 'default', loading, formatado = true }) {
   const cores = {
     default:  { border: 'border-surface-border', icon: 'text-gold',       valor: 'text-gold' },
     sucesso:  { border: 'border-emerald-800/50',  icon: 'text-emerald-400', valor: 'text-emerald-400' },
@@ -33,7 +37,7 @@ export default function MetricCard({ titulo, valor, sub, icon: Icon, variante = 
         <div className="h-8 w-32 bg-surface-hover rounded animate-pulse" />
       ) : (
         <p className={`font-serif font-bold text-2xl sm:text-3xl leading-none ${cores.valor}`}>
-          {fmt(valor)}
+          {formatado ? fmt(valor) : fmtInt(valor)}
         </p>
       )}
 
