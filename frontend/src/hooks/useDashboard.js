@@ -5,13 +5,9 @@ import { useBarbeariaData, isValidDate } from './useBarbeariaData';
 
 // ─── Helpers de data ──────────────────────────────────────────────────────────
 
-function inicioMes() {
+function hojeISO() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
-function fimMes() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ─── Projeção de faturamento ──────────────────────────────────────────────────
@@ -63,8 +59,8 @@ export function useDashboard() {
   const { mutate } = useSWRConfig();
 
   const [filtros, setFiltros] = useState({
-    inicio:  inicioMes(),
-    fim:     fimMes(),
+    inicio:  hojeISO(),
+    fim:     hojeISO(),
     unidade: '',
   });
 

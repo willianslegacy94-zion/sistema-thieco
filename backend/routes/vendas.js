@@ -6,6 +6,11 @@ const { query } = require('../db');
 
 const router = Router();
 
+function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const FORMAS_PAGAMENTO  = ['dinheiro', 'pix', 'credito', 'debito', 'cortesia'];
 const UNIDADES_VALIDAS  = ['tambore', 'mutinga'];
 const TIPOS_CLIENTE     = ['agendado', 'esporadico', 'primeira_vez'];
@@ -49,6 +54,10 @@ router.get('/',
     if (req.user.role !== 'admin') {
       req.query.profissional_id = req.user.profissional_id;
     }
+
+    // Fallback: se nenhuma data for enviada, exibe apenas o dia atual
+    if (!req.query.inicio) req.query.inicio = hojeISO();
+    if (!req.query.fim)    req.query.fim    = hojeISO();
 
     try {
       const { rows } = await Venda.findAll(req.query);

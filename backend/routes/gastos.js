@@ -6,6 +6,11 @@ const { query } = require('../db');
 
 const router = Router();
 
+function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const CATEGORIAS = ['aluguel', 'produtos', 'salario', 'marketing', 'manutencao', 'equipamentos', 'outros'];
 const UNIDADES_VALIDAS = ['tambore', 'mutinga'];
 
@@ -20,6 +25,10 @@ router.get('/',
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
+
+    // Fallback: se nenhuma data for enviada, exibe apenas o dia atual
+    if (!req.query.inicio) req.query.inicio = hojeISO();
+    if (!req.query.fim)    req.query.fim    = hojeISO();
 
     try {
       const { rows } = await Gasto.findAll(req.query);

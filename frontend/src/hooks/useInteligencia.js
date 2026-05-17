@@ -1,13 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 
-function inicioMes() {
+function hojeISO() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
-function fimMes() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function isValidDate(s) {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -58,8 +54,8 @@ function gerarProjecao(vendasPorDia, inicio, fim) {
 
 export function useInteligencia() {
   const [filtros, setFiltros] = useState({
-    inicio:  inicioMes(),
-    fim:     fimMes(),
+    inicio:  hojeISO(),
+    fim:     hojeISO(),
     unidade: '',
   });
 
@@ -71,8 +67,8 @@ export function useInteligencia() {
     setLoading(true);
     setErro(null);
     try {
-      const inicio = isValidDate(filtros.inicio) ? filtros.inicio : inicioMes();
-      const fim    = isValidDate(filtros.fim)    ? filtros.fim    : fimMes();
+      const inicio = isValidDate(filtros.inicio) ? filtros.inicio : hojeISO();
+      const fim    = isValidDate(filtros.fim)    ? filtros.fim    : hojeISO();
       const params = { inicio, fim };
       if (filtros.unidade) params.unidade = filtros.unidade;
 

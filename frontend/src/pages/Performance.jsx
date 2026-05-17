@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { api } from '../lib/api';
 
-function mesAtual() {
-  const hoje = new Date();
-  return {
-    inicio: new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10),
-    fim:    new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10),
-  };
+function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function diaAtual() {
+  const hoje = hojeISO();
+  return { inicio: hoje, fim: hoje };
 }
 
 const UNIDADES = [
@@ -19,7 +20,7 @@ const UNIDADES = [
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
 
 export default function Performance() {
-  const [filtros, setFiltros] = useState(mesAtual());
+  const [filtros, setFiltros] = useState(diaAtual());
   const [dados,   setDados]   = useState(null);
   const [metas,   setMetas]   = useState([]);
   const [loading, setLoading] = useState(false);

@@ -24,11 +24,10 @@ const periodoValidators = [
 
 function toNum(v) { return parseFloat(v ?? 0); }
 
-// Retorna datas válidas ou o período do mês atual como fallback
+// Retorna datas válidas ou o dia atual como fallback
 function resolverPeriodo(params) {
-  const agora = new Date();
-  const ini = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`;
-  const fim = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const _d = new Date();
+  const hoje = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
 
   function isValidDate(s) {
     if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -38,8 +37,8 @@ function resolverPeriodo(params) {
   }
 
   return {
-    inicio:  isValidDate(params.inicio) ? params.inicio : ini,
-    fim:     isValidDate(params.fim)    ? params.fim    : fim,
+    inicio:  isValidDate(params.inicio) ? params.inicio : hoje,
+    fim:     isValidDate(params.fim)    ? params.fim    : hoje,
     unidade: params.unidade ?? null,
   };
 }
