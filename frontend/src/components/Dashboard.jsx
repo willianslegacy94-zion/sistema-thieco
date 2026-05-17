@@ -226,7 +226,7 @@ function DashboardAdmin({ dados, loading, erro, filtros, setFiltros, recarregar,
               aberto={comissoesAberto}
               onToggle={() => setComissoesAberto((v) => !v)}
             />
-            <MetricCard titulo="Atendimentos Únicos"  valor={atendimentos}    icon={Star}       variante="sucesso" loading={loading} formatado={false} sub="Comandas no período" />
+            <MetricCard titulo="Atendimentos"          valor={atendimentos}    icon={Star}       variante="sucesso" loading={loading} formatado={false} sub="Comandas no período" />
             <MetricCard titulo="Ticket Médio"         valor={ticketMedio}     icon={Hash}       variante="default" loading={loading} sub="Faturamento ÷ Atendimentos" />
           </section>
 

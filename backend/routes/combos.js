@@ -16,10 +16,14 @@ function calcularValorLiquido(valor, forma) {
 }
 
 async function calcularComissao(profissional_id, valor) {
-  if (!profissional_id) return 0;
+  const zero = { comissao: 0, comissao_servico: 0, comissao_produto: 0 };
+  if (!profissional_id) return zero;
   const { rows } = await Profissional.findById(profissional_id);
-  if (!rows.length) return 0;
-  return parseFloat(((rows[0].percentual_comissao / 100) * valor).toFixed(2));
+  if (!rows.length) return zero;
+  if (parseFloat(rows[0].percentual_comissao) === 0) return zero;
+  // Combos são sempre serviços: 40% sobre o valor bruto
+  const comissao_servico = parseFloat(((40 / 100) * parseFloat(valor)).toFixed(2));
+  return { comissao: comissao_servico, comissao_servico, comissao_produto: 0 };
 }
 
 function addDias(dataISO, n) {
@@ -83,16 +87,17 @@ router.post('/uso', authenticate,
 
       const unidade = req.user.role === 'operador' ? req.user.unidade : combo.unidade;
       const profissional_id = req.user.profissional_id ?? null;
-      const comissao  = await calcularComissao(profissional_id, parseFloat(valor));
+      const { comissao, comissao_servico, comissao_produto } = await calcularComissao(profissional_id, parseFloat(valor));
       const val_liq   = calcularValorLiquido(parseFloat(valor), forma_pagamento);
 
       // Registra venda (atendimento do dia)
       const { rows: vendaRows } = await query(`
-        INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, forma_pagamento,
-                            data, nome_cliente, bandeira_cartao, valor_liquido, tipo_cliente)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'agendado') RETURNING *
-      `, [unidade, profissional_id, servico, valor, comissao, forma_pagamento,
-          hojeISO(), combo.cliente_nome, bandeira_cartao ?? null, val_liq]);
+        INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, comissao_servico,
+                            comissao_produto, forma_pagamento, data, nome_cliente, bandeira_cartao,
+                            valor_liquido, tipo_cliente)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'agendado') RETURNING *
+      `, [unidade, profissional_id, servico, valor, comissao, comissao_servico, comissao_produto,
+          forma_pagamento, hojeISO(), combo.cliente_nome, bandeira_cartao ?? null, val_liq]);
 
       // Atualiza combo se solicitado
       if (alterar_plano && novo_servico) {
@@ -131,7 +136,7 @@ router.post('/ativar', authenticate,
 
       const hoje          = hojeISO();
       const data_venc     = addDias(hoje, 30);
-      const comissao      = await calcularComissao(profissional_id, parseFloat(valor));
+      const { comissao, comissao_servico, comissao_produto } = await calcularComissao(profissional_id, parseFloat(valor));
       const val_liq       = calcularValorLiquido(parseFloat(valor), forma_pagamento);
 
       // Cria combo
@@ -142,11 +147,12 @@ router.post('/ativar', authenticate,
 
       // Cria venda (faturamento do dia)
       const { rows: vendaRows } = await query(`
-        INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, forma_pagamento,
-                            data, nome_cliente, bandeira_cartao, valor_liquido, tipo_cliente)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'primeira_vez') RETURNING *
-      `, [unidade, profissional_id, servicos.trim(), valor, comissao, forma_pagamento,
-          hoje, cliente_nome.trim(), bandeira_cartao ?? null, val_liq]);
+        INSERT INTO vendas (unidade, profissional_id, servico, valor, comissao, comissao_servico,
+                            comissao_produto, forma_pagamento, data, nome_cliente, bandeira_cartao,
+                            valor_liquido, tipo_cliente)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'primeira_vez') RETURNING *
+      `, [unidade, profissional_id, servicos.trim(), valor, comissao, comissao_servico, comissao_produto,
+          forma_pagamento, hoje, cliente_nome.trim(), bandeira_cartao ?? null, val_liq]);
 
       res.status(201).json({ combo: comboRows[0], venda: vendaRows[0] });
     } catch (err) {

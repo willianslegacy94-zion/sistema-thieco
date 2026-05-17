@@ -69,6 +69,10 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
   const uf   = unidade ? `AND unidade = '${unidade}'`         : '';
   const pfv  = profId  ? `AND profissional_id = ${profId}`    : '';
 
+  // Versões prefixadas para queries com JOIN (evita ambiguidade em colunas comuns)
+  const uf_v  = unidade ? `AND v.unidade = '${unidade}'`       : '';
+  const pfv_v = profId  ? `AND v.profissional_id = ${profId}`  : '';
+
   try {
     const entradasQ = await query(`
       SELECT data, unidade,
@@ -89,17 +93,32 @@ router.get('/fluxo-caixa', authenticate, requireAdmin, periodoValidators, async 
       GROUP BY data, unidade ORDER BY data
     `, [inicio, fim]);
 
+    // Comissões recalculadas por tipo_item para corrigir registros com separação incorreta:
+    //   serviços  → 40% s/ (valor + desconto)  quando percentual_comissao > 0
+    //   produtos  → 10% s/ (valor + desconto)  quando percentual_comissao > 0
     const totaisEntrada = await query(`
       SELECT
-        SUM(valor)             AS receita_bruta,
-        SUM(comissao_servico)  AS total_comissao_servico,
-        SUM(comissao_produto)  AS total_comissao_produto,
-        SUM(comissao)          AS total_comissoes,
-        SUM(desconto)          AS total_descontos,
-        COUNT(DISTINCT COALESCE(venda_origem_id, id))          AS total_atendimentos,
-        COUNT(*) FILTER (WHERE tipo_item != 'produto')         AS qtd_servicos,
-        COUNT(*) FILTER (WHERE tipo_item = 'produto')          AS qtd_produtos
-      FROM vendas WHERE data BETWEEN $1 AND $2 ${uf} ${pfv}
+        SUM(v.valor)                                                          AS receita_bruta,
+        COALESCE(SUM(
+          CASE WHEN v.tipo_item != 'produto' AND COALESCE(p.percentual_comissao, 0) > 0
+               THEN ROUND((v.valor + COALESCE(v.desconto, 0)) * 0.40, 2)
+               ELSE 0 END), 0)                                                AS total_comissao_servico,
+        COALESCE(SUM(
+          CASE WHEN v.tipo_item = 'produto' AND COALESCE(p.percentual_comissao, 0) > 0
+               THEN ROUND((v.valor + COALESCE(v.desconto, 0)) * 0.10, 2)
+               ELSE 0 END), 0)                                                AS total_comissao_produto,
+        COALESCE(SUM(
+          CASE WHEN COALESCE(p.percentual_comissao, 0) > 0
+               THEN ROUND((v.valor + COALESCE(v.desconto, 0)) *
+                      CASE WHEN v.tipo_item = 'produto' THEN 0.10 ELSE 0.40 END, 2)
+               ELSE 0 END), 0)                                                AS total_comissoes,
+        SUM(v.desconto)                                                       AS total_descontos,
+        COUNT(DISTINCT COALESCE(v.venda_origem_id, v.id))                     AS total_atendimentos,
+        COUNT(*) FILTER (WHERE v.tipo_item != 'produto' AND v.valor > 0)       AS qtd_servicos,
+        COUNT(*) FILTER (WHERE v.tipo_item = 'produto')                       AS qtd_produtos
+      FROM vendas v
+      LEFT JOIN profissionais p ON p.id = v.profissional_id
+      WHERE v.data BETWEEN $1 AND $2 ${uf_v} ${pfv_v}
     `, [inicio, fim]);
 
     const totaisSaida = await query(`
