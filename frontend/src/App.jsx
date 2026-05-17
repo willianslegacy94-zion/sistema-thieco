@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { SWRConfig } from 'swr';
-import { LayoutDashboard, Users, Lock, Brain, Receipt, TrendingUp, Tag, UserRound, Scissors, BarChart2, Trophy, Package, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, Lock, Brain, Receipt, TrendingUp, Tag, UserRound, Scissors, BarChart2, Trophy, Package, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Header from './components/Header';
@@ -18,6 +18,63 @@ import MetasIndividuais from './pages/MetasIndividuais';
 import MetasUnidade from './pages/MetasUnidade';
 import Estoque from './pages/Estoque';
 import Lancamentos from './pages/Lancamentos';
+
+// ─── Container de abas com rolagem e setas ───────────────────────────────────
+
+function ScrollableTabs({ children }) {
+  const ref = useRef(null);
+  const [canLeft, setCanLeft]   = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 0);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    el.addEventListener('scroll', update, { passive: true });
+    return () => { ro.disconnect(); el.removeEventListener('scroll', update); };
+  }, [update]);
+
+  const scroll = (dir) => ref.current?.scrollBy({ left: dir * 160, behavior: 'smooth' });
+
+  return (
+    <div className="relative flex items-stretch">
+      {canLeft && (
+        <button
+          onClick={() => scroll(-1)}
+          aria-label="Rolar para esquerda"
+          className="absolute left-0 z-10 h-full px-1.5 flex items-center
+                     bg-gradient-to-r from-onix-200 via-onix-200/80 to-transparent
+                     text-gold-muted hover:text-gold transition-colors"
+        >
+          <ChevronLeft size={15} />
+        </button>
+      )}
+      <div ref={ref} className="flex gap-1 overflow-x-auto tabs-scroll">
+        {children}
+      </div>
+      {canRight && (
+        <button
+          onClick={() => scroll(1)}
+          aria-label="Rolar para direita"
+          className="absolute right-0 z-10 h-full px-1.5 flex items-center
+                     bg-gradient-to-l from-onix-200 via-onix-200/80 to-transparent
+                     text-gold-muted hover:text-gold transition-colors"
+        >
+          <ChevronRight size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 // ─── Aba de navegação ────────────────────────────────────────────────────────
 
@@ -89,7 +146,7 @@ function AppOperador() {
 
       <nav className="border-b border-surface-border bg-onix-200/60 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex gap-1 overflow-x-auto">
+          <ScrollableTabs>
             {[
               { id: 'registro',     label: 'Registro',     icon: Scissors       },
               { id: 'lancamentos',  label: 'Lançamentos',  icon: ClipboardList  },
@@ -111,7 +168,7 @@ function AppOperador() {
                 </button>
               );
             })}
-          </div>
+          </ScrollableTabs>
         </div>
       </nav>
 
@@ -156,7 +213,7 @@ function AppAutenticado() {
 
       <nav className="border-b border-surface-border bg-onix-200/60 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex gap-1 overflow-x-auto">
+          <ScrollableTabs>
             {PAGINAS.map((p) => (
               <NavTab
                 key={p.id}
@@ -166,7 +223,7 @@ function AppAutenticado() {
                 disabled={p.admin && !isAdmin}
               />
             ))}
-          </div>
+          </ScrollableTabs>
         </div>
       </nav>
 

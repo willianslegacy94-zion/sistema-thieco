@@ -94,4 +94,8 @@
     @apply border-b border-surface-border last:border-0
            hover:bg-surface-hover transition-colors duration-150;
   }
+
+  /* ── Tabs com scroll horizontal sem scrollbar nativo ── */
+  .tabs-scroll { scrollbar-width: none; }
+  .tabs-scroll::-webkit-scrollbar { display: none; }
 }
