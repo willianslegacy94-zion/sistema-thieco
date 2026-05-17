@@ -20,42 +20,63 @@ const FORM_INICIAL = {
   nome:                  '',
   contato:               '',
   tipo:                  'regular',
-  barbeiro_preferido_id: '',
   unidade:               'tambore',
+  barbeiro_preferido_id: '',
+  data_nascimento:       '',
   primeira_visita:       hojeISO(),
   observacao:            '',
 };
 
 export default function Clientes() {
-  const [clientes,  setClientes]  = useState([]);
-  const [barbeiros, setBarbeiros] = useState([]);
-  const [form,      setForm]      = useState(FORM_INICIAL);
-  const [busca,     setBusca]     = useState('');
-  const [unidade,   setUnidade]   = useState('');
-  const [abaAtiva,  setAbaAtiva]  = useState('lista');
-  const [loading,   setLoading]   = useState(false);
-  const [enviando,  setEnviando]  = useState(false);
-  const [sucesso,   setSucesso]   = useState(null);
-  const [erro,      setErro]      = useState(null);
+  const [clientes,       setClientes]       = useState([]);
+  const [barbeiros,      setBarbeiros]      = useState([]);
+  const [form,           setForm]           = useState(FORM_INICIAL);
+  const [busca,          setBusca]          = useState('');
+  const [unidade,        setUnidade]        = useState('');
+  const [filtroBarbeiro, setFiltroBarbeiro] = useState('');
+  const [abaAtiva,       setAbaAtiva]       = useState('lista');
+  const [loading,        setLoading]        = useState(false);
+  const [enviando,       setEnviando]       = useState(false);
+  const [sucesso,        setSucesso]        = useState(null);
+  const [erro,           setErro]           = useState(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
+      const params = {};
+      if (busca)          params.busca                   = busca;
+      if (unidade)        params.unidade                 = unidade;
+      if (filtroBarbeiro) params.barbeiro_responsavel_id = filtroBarbeiro;
+
       const [rows, profs] = await Promise.all([
-        api.clientes({ ...(busca ? { busca } : {}), ...(unidade ? { unidade } : {}) }),
-        api.profissionais({ apenas_barbeiros: 'true' }),
+        api.clientes(params),
+        api.profissionais(),
       ]);
       setClientes(rows);
       setBarbeiros(profs);
     } catch { /* silencioso */ }
     finally { setLoading(false); }
-  }, [busca, unidade]);
+  }, [busca, unidade, filtroBarbeiro]);
 
-  useEffect(() => { carregar(); }, [unidade]);
+  useEffect(() => { carregar(); }, [unidade, filtroBarbeiro]);
+
+  // Cascata do formulário: barbeiros da unidade selecionada no form
+  const barbeirosParaForm = form.unidade
+    ? barbeiros.filter((b) => b.unidade === form.unidade)
+    : barbeiros;
+
+  // Cascata da listagem: barbeiros da unidade selecionada no filtro
+  const barbeirosParaFiltro = unidade
+    ? barbeiros.filter((b) => b.unidade === unidade)
+    : barbeiros;
 
   function onChange(e) {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm((f) => {
+      const next = { ...f, [name]: value };
+      if (name === 'unidade') next.barbeiro_preferido_id = '';
+      return next;
+    });
   }
 
   async function pesquisar(e) {
@@ -69,9 +90,12 @@ export default function Clientes() {
     setErro(null);
     setSucesso(null);
     try {
+      const barbeiroId = form.barbeiro_preferido_id ? parseInt(form.barbeiro_preferido_id) : undefined;
       const payload = {
         ...form,
-        barbeiro_preferido_id: form.barbeiro_preferido_id ? parseInt(form.barbeiro_preferido_id) : undefined,
+        barbeiro_preferido_id:   barbeiroId,
+        barbeiro_responsavel_id: barbeiroId,
+        data_nascimento:         form.data_nascimento || undefined,
       };
       const novo = await api.criarCliente(payload);
       setSucesso(novo);
@@ -128,6 +152,7 @@ export default function Clientes() {
             </div>
           )}
 
+          {/* Linha 1: Nome e Contato */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Nome *</label>
@@ -139,6 +164,7 @@ export default function Clientes() {
             </div>
           </div>
 
+          {/* Linha 2: Tipo, Unidade e Data de Nascimento */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Tipo</label>
@@ -153,14 +179,21 @@ export default function Clientes() {
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Barbeiro preferido</label>
-              <select name="barbeiro_preferido_id" value={form.barbeiro_preferido_id} onChange={onChange} className="input-dark w-full">
-                <option value="">Sem preferência</option>
-                {barbeiros.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
-              </select>
+              <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Data de Nascimento</label>
+              <input type="date" name="data_nascimento" value={form.data_nascimento} onChange={onChange} className="input-dark w-full" />
             </div>
           </div>
 
+          {/* Linha 3: Barbeiro — cascata pela unidade selecionada */}
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Barbeiro</label>
+            <select name="barbeiro_preferido_id" value={form.barbeiro_preferido_id} onChange={onChange} className="input-dark w-full">
+              <option value="">Sem barbeiro</option>
+              {barbeirosParaForm.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
+            </select>
+          </div>
+
+          {/* Linha 4: Primeira Visita e Observação */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Primeira visita</label>
@@ -192,8 +225,16 @@ export default function Clientes() {
                 Buscar
               </button>
             </form>
-            <select value={unidade} onChange={(e) => setUnidade(e.target.value)} className="input-dark text-xs px-2 py-1.5">
+            <select
+              value={unidade}
+              onChange={(e) => { setUnidade(e.target.value); setFiltroBarbeiro(''); }}
+              className="input-dark text-xs px-2 py-1.5"
+            >
               {UNIDADES.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+            <select value={filtroBarbeiro} onChange={(e) => setFiltroBarbeiro(e.target.value)} className="input-dark text-xs px-2 py-1.5">
+              <option value="">Todos barbeiros</option>
+              {barbeirosParaFiltro.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
             </select>
           </div>
 
@@ -215,7 +256,10 @@ export default function Clientes() {
                       </span>
                     </div>
                     <p className="text-[11px] text-gold-muted mt-0.5">
-                      {c.contato ?? '—'} · {c.unidade ?? '—'} · {c.barbeiro_preferido_nome ?? 'Sem barbeiro preferido'}
+                      {c.contato ?? '—'} · {c.unidade ?? '—'} · pref: {c.barbeiro_preferido_nome ?? '—'}
+                    </p>
+                    <p className="text-[11px] text-gold-muted/70 mt-0.5">
+                      Responsável: {c.barbeiro_responsavel_nome ?? '—'}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

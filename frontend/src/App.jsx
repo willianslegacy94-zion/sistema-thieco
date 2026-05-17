@@ -193,6 +193,7 @@ function AppAutenticado() {
   const PAGINAS = [
     { id: 'dashboard',    label: 'Dashboard',               icon: LayoutDashboard, admin: false },
     { id: 'performance',  label: 'Performance',              icon: TrendingUp,      admin: false },
+    { id: 'registro',     label: 'Registro',                icon: Scissors,        admin: true  },
     { id: 'lancamentos',  label: 'Lançamentos',              icon: ClipboardList,   admin: true  },
     { id: 'inteligencia', label: 'Inteligência Financeira',  icon: Brain,           admin: true  },
     { id: 'despesas',     label: 'Despesas',                 icon: Receipt,         admin: true  },
@@ -230,6 +231,7 @@ function AppAutenticado() {
       <div className="animate-fade-in" key={paginaAtual}>
         {paginaAtual === 'dashboard'    && <Dashboard />}
         {paginaAtual === 'performance'  && <Performance />}
+        {paginaAtual === 'registro'     && isAdmin && <RegistroVenda onIrParaClientes={() => setPagina('clientes')} />}
         {paginaAtual === 'lancamentos'  && isAdmin && <Lancamentos />}
         {paginaAtual === 'inteligencia' && isAdmin && <IntelFinanceira />}
         {paginaAtual === 'despesas'     && isAdmin && <RegistroGasto />}

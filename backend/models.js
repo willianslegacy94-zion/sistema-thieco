@@ -219,6 +219,13 @@ const CREATE_CLIENTES = `
   CREATE INDEX IF NOT EXISTS idx_clientes_unidade ON clientes(unidade);
 `;
 
+const ALTER_CLIENTES_NOVOS_CAMPOS = `
+  ALTER TABLE clientes
+    ADD COLUMN IF NOT EXISTS data_nascimento         DATE,
+    ADD COLUMN IF NOT EXISTS barbeiro_responsavel_id INTEGER
+      REFERENCES profissionais(id) ON DELETE SET NULL;
+`;
+
 // ─── DDL Metas ───────────────────────────────────────────────────────────────
 
 const CREATE_METAS = `
@@ -496,6 +503,7 @@ async function runMigrations() {
     await query(UPDATE_THIECO_COMISSAO_ZERO);
     await query(CREATE_COMBOS);
     await query(CREATE_CLIENTES);
+    await query(ALTER_CLIENTES_NOVOS_CAMPOS);
     await query(CREATE_METAS);
     await query(CREATE_METAS_UNIDADE);
     await query(CREATE_CATALOGO);
@@ -681,25 +689,30 @@ const Combo = {
 };
 
 const Cliente = {
-  findAll: ({ unidade, busca, tipo } = {}) => {
+  findAll: ({ unidade, busca, tipo, barbeiro_responsavel_id } = {}) => {
     const conditions = ['c.ativo = true'];
     const params = [];
-    if (unidade) { conditions.push(`c.unidade = $${params.push(unidade)}`); }
-    if (tipo)    { conditions.push(`c.tipo = $${params.push(tipo)}`); }
-    if (busca)   { conditions.push(`LOWER(c.nome) LIKE LOWER($${params.push('%' + busca + '%')})`); }
+    if (unidade)               { conditions.push(`c.unidade = $${params.push(unidade)}`); }
+    if (tipo)                  { conditions.push(`c.tipo = $${params.push(tipo)}`); }
+    if (busca)                 { conditions.push(`LOWER(c.nome) LIKE LOWER($${params.push('%' + busca + '%')})`); }
+    if (barbeiro_responsavel_id) { conditions.push(`c.barbeiro_responsavel_id = $${params.push(Number(barbeiro_responsavel_id))}`); }
     return query(
-      `SELECT c.*, p.nome AS barbeiro_preferido_nome
-       FROM clientes c LEFT JOIN profissionais p ON p.id = c.barbeiro_preferido_id
+      `SELECT c.*,
+              pref.nome AS barbeiro_preferido_nome,
+              resp.nome AS barbeiro_responsavel_nome
+       FROM clientes c
+       LEFT JOIN profissionais pref ON pref.id = c.barbeiro_preferido_id
+       LEFT JOIN profissionais resp ON resp.id = c.barbeiro_responsavel_id
        WHERE ${conditions.join(' AND ')} ORDER BY c.nome`,
       params
     );
   },
   findById: (id) => query(`SELECT * FROM clientes WHERE id = $1`, [id]),
-  create: ({ nome, contato, tipo, barbeiro_preferido_id, unidade, primeira_visita, observacao }) =>
+  create: ({ nome, contato, tipo, barbeiro_preferido_id, unidade, primeira_visita, observacao, data_nascimento, barbeiro_responsavel_id }) =>
     query(
-      `INSERT INTO clientes (nome, contato, tipo, barbeiro_preferido_id, unidade, primeira_visita, ultima_visita)
-       VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING *`,
-      [nome, contato ?? null, tipo ?? 'regular', barbeiro_preferido_id ?? null, unidade ?? null, primeira_visita ?? null]
+      `INSERT INTO clientes (nome, contato, tipo, barbeiro_preferido_id, unidade, primeira_visita, ultima_visita, data_nascimento, barbeiro_responsavel_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8) RETURNING *`,
+      [nome, contato ?? null, tipo ?? 'regular', barbeiro_preferido_id ?? null, unidade ?? null, primeira_visita ?? null, data_nascimento ?? null, barbeiro_responsavel_id ?? null]
     ),
   update: (id, fields) => {
     const sets = Object.keys(fields).map((k, i) => `${k} = $${i + 2}`).join(', ');

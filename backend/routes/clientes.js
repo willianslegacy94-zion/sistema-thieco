@@ -8,11 +8,12 @@ const router = Router();
 const UNIDADES_VALIDAS = ['tambore', 'mutinga'];
 const TIPOS_CLIENTE    = ['regular', 'vip', 'combo'];
 
-// GET /clientes — admin only
-router.get('/', authenticate, requireAdmin,
+// GET /clientes — qualquer usuário autenticado pode buscar (operadores incluídos)
+router.get('/', authenticate,
   qv('unidade').optional().isIn(UNIDADES_VALIDAS),
   qv('tipo').optional().isIn(TIPOS_CLIENTE),
   qv('busca').optional().isString(),
+  qv('barbeiro_responsavel_id').optional().isInt(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
@@ -31,7 +32,9 @@ router.post('/', authenticate, requireAdmin,
   body('tipo').optional().isIn(TIPOS_CLIENTE),
   body('unidade').optional().isIn(UNIDADES_VALIDAS),
   body('primeira_visita').optional().isDate(),
+  body('data_nascimento').optional().isDate(),
   body('barbeiro_preferido_id').optional().isInt(),
+  body('barbeiro_responsavel_id').optional().isInt(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
@@ -46,7 +49,7 @@ router.post('/', authenticate, requireAdmin,
 
 // PATCH /clientes/:id — admin only
 router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
-  const allowed = ['nome', 'contato', 'tipo', 'barbeiro_preferido_id', 'unidade', 'ultima_visita', 'total_visitas', 'observacao', 'ativo'];
+  const allowed = ['nome', 'contato', 'tipo', 'barbeiro_preferido_id', 'barbeiro_responsavel_id', 'unidade', 'ultima_visita', 'total_visitas', 'observacao', 'ativo', 'data_nascimento'];
   const campos = Object.fromEntries(
     Object.entries(req.body).filter(([k]) => allowed.includes(k))
   );

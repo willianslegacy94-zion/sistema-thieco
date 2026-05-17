@@ -121,6 +121,110 @@ function CatalogoAutocomplete({ value, onChange, onSelect, catalogo, placeholder
 
 const SEM_SERVICO = { id: '__sem_servico__', nome: 'Sem Serviço / Apenas Venda', preco_venda: 0, controla_estoque: false };
 
+// ─── Autocomplete de clientes cadastrados ────────────────────────────────────
+
+function ClienteAutocomplete({ value, onChange, onSelectCliente, onCadastrar }) {
+  const [sugestoes, setSugestoes] = useState([]);
+  const [aberto,    setAberto]    = useState(false);
+  const [buscando,  setBuscando]  = useState(false);
+  const timer   = useRef(null);
+  const wrapper = useRef(null);
+
+  useEffect(() => {
+    function fechar(e) {
+      if (wrapper.current && !wrapper.current.contains(e.target)) setAberto(false);
+    }
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  function onInput(e) {
+    const v = e.target.value;
+    onChange(v);
+    clearTimeout(timer.current);
+    if (v.trim().length < 2) { setSugestoes([]); setAberto(false); return; }
+    setBuscando(true);
+    timer.current = setTimeout(async () => {
+      try {
+        const rows = await api.clientes({ busca: v.trim() });
+        setSugestoes(rows);
+        setAberto(true);
+      } catch {
+        setSugestoes([]);
+        setAberto(false);
+      } finally {
+        setBuscando(false);
+      }
+    }, 380);
+  }
+
+  function selecionar(c) {
+    onSelectCliente(c);
+    setAberto(false);
+    setSugestoes([]);
+  }
+
+  const mostraDropdown = aberto && value.trim().length >= 2;
+
+  return (
+    <div ref={wrapper} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={value}
+          onChange={onInput}
+          onFocus={() => { if (value.trim().length >= 2) setAberto(true); }}
+          placeholder="Ex.: João Silva"
+          className="input-dark w-full pr-8"
+          required
+          pattern="[A-Za-zÀ-ÿ\s'\-]+"
+          title="Somente letras e espaços"
+          onKeyDown={e => { if (/[0-9]/.test(e.key)) e.preventDefault(); }}
+        />
+        {buscando && (
+          <RefreshCw size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-gold-muted pointer-events-none" />
+        )}
+      </div>
+
+      {mostraDropdown && (
+        <ul className="absolute w-full mt-1 rounded-xl border border-surface-border bg-onix-200 shadow-xl z-50 max-h-56 overflow-y-auto">
+          {sugestoes.length > 0 ? (
+            sugestoes.map(c => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onMouseDown={() => selecionar(c)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-onix-300/60 transition-colors"
+                >
+                  <p className="text-sm text-gold-light">{c.nome}</p>
+                  <p className="text-[11px] text-gold-muted">
+                    {[c.contato, c.unidade, c.barbeiro_responsavel_nome].filter(Boolean).join(' · ')}
+                  </p>
+                </button>
+              </li>
+            ))
+          ) : !buscando ? (
+            <li className="px-4 py-3 flex items-center justify-between gap-2">
+              <p className="text-xs text-gold-muted">Nenhum cliente encontrado na base.</p>
+              {onCadastrar ? (
+                <button
+                  type="button"
+                  onMouseDown={onCadastrar}
+                  className="flex items-center gap-1 text-xs text-gold hover:text-gold-light font-semibold shrink-0"
+                >
+                  <Plus size={12} /> Cadastrar
+                </button>
+              ) : (
+                <span className="text-[11px] text-amber-400/80 shrink-0">Solicite ao admin</span>
+              )}
+            </li>
+          ) : null}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ─── Aba: Venda Normal ───────────────────────────────────────────────────────
 
 const FORM_INICIAL = {
@@ -140,7 +244,7 @@ const FORM_INICIAL = {
 
 const UPSELL_INICIAL = { servico: '', valor: '' };
 
-function AbaVenda({ barbeiros, catalogo, user }) {
+function AbaVenda({ barbeiros, catalogo, user, onIrParaClientes }) {
   const invalidarDashboard = useInvalidarDashboard();
 
   const [form,       setForm]       = useState(FORM_INICIAL);
@@ -178,6 +282,9 @@ function AbaVenda({ barbeiros, catalogo, user }) {
   }
   function selecionarUpsell(nome, preco) {
     setUpsell(u => ({ ...u, servico: nome, valor: parseFloat(preco).toFixed(2) }));
+  }
+  function onSelectCliente(c) {
+    setForm(f => ({ ...f, nome_cliente: c.nome }));
   }
 
   // ─── Cálculos em tempo real ───────────────────────────────────────────────
@@ -357,15 +464,11 @@ function AbaVenda({ barbeiros, catalogo, user }) {
         {/* Nome do Cliente */}
         <div>
           <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">Nome do cliente *</label>
-          <input
-            type="text" name="nome_cliente" value={form.nome_cliente} onChange={onChange}
-            placeholder="Ex.: João Silva" className="input-dark w-full"
-            required
-            pattern="[A-Za-zÀ-ÿ\s'\-]+"
-            title="Somente letras e espaços"
-            onKeyDown={e => {
-              if (/[0-9]/.test(e.key)) e.preventDefault();
-            }}
+          <ClienteAutocomplete
+            value={form.nome_cliente}
+            onChange={v => setForm(f => ({ ...f, nome_cliente: v }))}
+            onSelectCliente={onSelectCliente}
+            onCadastrar={onIrParaClientes}
           />
         </div>
 
@@ -997,17 +1100,17 @@ function AbaCombo({ barbeiros, catalogo, user }) {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
-export default function RegistroVenda() {
+export default function RegistroVenda({ onIrParaClientes }) {
   const { user } = useAuth();
   const [aba,       setAba]       = useState('venda');
   const [barbeiros, setBarbeiros] = useState([]);
   const [catalogo,  setCatalogo]  = useState([]);
 
   useEffect(() => {
-    if (user?.unidade === 'tambore') {
-      api.profissionais({ unidade: 'tambore' }).then(setBarbeiros).catch(() => {});
+    if (user?.unidade) {
+      api.profissionais({ unidade: user.unidade }).then(setBarbeiros).catch(() => {});
     } else {
-      api.profissionais({ apenas_barbeiros: 'true' }).then(setBarbeiros).catch(() => {});
+      api.profissionais().then(setBarbeiros).catch(() => {});
     }
     const unidade = user?.unidade ?? 'mutinga';
     api.catalogo({ unidade }).then(d => setCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
@@ -1044,7 +1147,7 @@ export default function RegistroVenda() {
         ))}
       </div>
 
-      {aba === 'venda' && <AbaVenda barbeiros={barbeiros} catalogo={catalogo} user={user} />}
+      {aba === 'venda' && <AbaVenda barbeiros={barbeiros} catalogo={catalogo} user={user} onIrParaClientes={onIrParaClientes} />}
       {aba === 'combo' && <AbaCombo barbeiros={barbeiros} catalogo={catalogo} user={user} />}
     </main>
   );
