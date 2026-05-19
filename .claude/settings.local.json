@@ -128,7 +128,24 @@
       "Bash(Select-String -Pattern \"STATE\")",
       "Bash(Select-Object -First 3)",
       "PowerShell(Get-Service *)",
-      "Bash(Get-ChildItem -Path . -Directory)"
+      "Bash(Get-ChildItem -Path . -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(Format-Table FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Willians DataMeet\\\\Desktop\\\\Ops\\\\sistema-thieco\\\\frontend\\\\src\" -Recurse -Filter \"*ilter*\")",
+      "Bash(Select-Object FullName)",
+      "Bash(npm run *)",
+      "Bash(npx kill-port *)",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -I{} taskkill /PID {} /F)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(nc -zv -w 5 72.60.113.214 22)",
+      "Bash(nc -zv -w 5 72.60.113.214 2222)",
+      "Bash(nc -zv -w 5 72.60.113.214 5173)",
+      "Bash(timeout 8 bash -c \"echo >/dev/tcp/72.60.113.214/22\")",
+      "Bash(timeout 8 bash -c \"echo >/dev/tcp/72.60.113.214/2222\")",
+      "Bash(timeout 8 bash -c \"echo >/dev/tcp/72.60.113.214/80\")",
+      "Bash(timeout 8 bash -c \"echo >/dev/tcp/72.60.113.214/5173\")"
     ]
   }
 }

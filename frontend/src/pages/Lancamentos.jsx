@@ -391,7 +391,10 @@ export default function Lancamentos() {
           >
             <option value="">Todos os barbeiros</option>
             {barbeiros
-              .filter(b => !filtros.unidade || b.unidade === filtros.unidade)
+              .filter(b => {
+                if (!isAdmin && user?.unidade) return b.unidade === user.unidade;
+                return !filtros.unidade || b.unidade === filtros.unidade;
+              })
               .map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
           </select>
         </div>
@@ -513,7 +516,7 @@ export default function Lancamentos() {
       {editando && (
         <ModalEditar
           venda={editando}
-          barbeiros={barbeiros}
+          barbeiros={!isAdmin && user?.unidade ? barbeiros.filter(b => b.unidade === user.unidade) : barbeiros}
           onSalvar={salvar}
           onFechar={() => { setEditando(null); setErroSalvar(null); }}
           salvando={salvando}
