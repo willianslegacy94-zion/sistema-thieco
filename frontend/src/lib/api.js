@@ -87,6 +87,8 @@ export const api = {
     http('/clientes', { method: 'POST', body: JSON.stringify(body) }),
   atualizarCliente: (id, body) =>
     http(`/clientes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deletarCliente: (id, observacao) =>
+    http(`/clientes/${id}`, { method: 'DELETE', body: JSON.stringify({ observacao }) }),
 
   // ── Metas ─────────────────────────────────────────────────────────────────
   metas: (params = {}) =>

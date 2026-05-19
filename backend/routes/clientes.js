@@ -63,4 +63,23 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// DELETE /clientes/:id — soft delete (admin only), observação obrigatória
+router.delete('/:id', authenticate, requireAdmin,
+  body('observacao').trim().notEmpty().withMessage('Informe o motivo da exclusão.'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(422).json({ erros: errors.array() });
+    try {
+      const { rows } = await Cliente.update(req.params.id, {
+        ativo:      false,
+        observacao: req.body.observacao,
+      });
+      if (!rows.length) return res.status(404).json({ erro: 'Cliente não encontrado.' });
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ erro: err.message });
+    }
+  }
+);
+
 module.exports = router;

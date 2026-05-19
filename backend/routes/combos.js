@@ -86,7 +86,7 @@ router.post('/uso', authenticate,
       const combo = combos[0];
 
       const unidade = req.user.role === 'operador' ? req.user.unidade : combo.unidade;
-      const profissional_id = req.user.profissional_id ?? null;
+      const profissional_id = req.user.profissional_id ?? combo.profissional_id ?? null;
       const { comissao, comissao_servico, comissao_produto } = await calcularComissao(profissional_id, parseFloat(valor));
       const val_liq   = calcularValorLiquido(parseFloat(valor), forma_pagamento);
 
@@ -132,7 +132,8 @@ router.post('/ativar', authenticate,
     try {
       const { cliente_nome, servicos, valor, forma_pagamento = 'credito', bandeira_cartao } = req.body;
       const unidade = req.user.role === 'operador' ? req.user.unidade : (req.body.unidade ?? req.user.unidade);
-      const profissional_id = req.user.profissional_id ?? null;
+      const profissional_id = req.user.profissional_id
+        ?? (req.body.profissional_id ? parseInt(req.body.profissional_id) : null);
 
       const hoje          = hojeISO();
       const data_venc     = addDias(hoje, 30);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Plus, Search, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Users, Plus, Search, CheckCircle, AlertTriangle, Trash2, X, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const UNIDADES = [
   { value: '',        label: 'Todas' },
@@ -27,18 +28,92 @@ const FORM_INICIAL = {
   observacao:            '',
 };
 
+function ModalExcluir({ cliente, onConfirmar, onFechar, excluindo, erro }) {
+  const [observacao, setObservacao] = useState('');
+
+  function onSubmit(e) {
+    e.preventDefault();
+    if (!observacao.trim()) return;
+    onConfirmar(cliente.id, observacao.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-md bg-onix-200 border border-surface-border rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+          <div>
+            <h2 className="font-serif font-bold text-red-400 text-base">Excluir Cliente</h2>
+            <p className="text-[11px] text-gold-muted mt-0.5">{cliente.nome}</p>
+          </div>
+          <button onClick={onFechar} className="p-1.5 text-gold-muted hover:text-gold transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {erro && (
+          <div className="mx-5 mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-900/20 border border-red-700/40 text-red-400 text-xs">
+            <AlertCircle size={14} className="shrink-0" /> {erro}
+          </div>
+        )}
+
+        <form onSubmit={onSubmit} className="p-5 space-y-4">
+          <p className="text-sm text-gold-muted">
+            Esta ação desativará o cliente da base. Informe o motivo abaixo.
+          </p>
+          <div>
+            <label className="block text-[11px] text-gold-muted uppercase tracking-wider mb-1.5">
+              Motivo da exclusão *
+            </label>
+            <input
+              type="text"
+              value={observacao}
+              onChange={e => setObservacao(e.target.value)}
+              required
+              autoFocus
+              placeholder="Ex.: Cliente de teste, dados duplicados…"
+              className="input-dark w-full"
+            />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button" onClick={onFechar}
+              className="flex-1 py-2.5 text-sm font-medium text-gold-muted border border-surface-border rounded-xl hover:text-gold transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit" disabled={excluindo || !observacao.trim()}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {excluindo
+                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <Trash2 size={15} />}
+              {excluindo ? 'Excluindo…' : 'Confirmar Exclusão'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Clientes() {
-  const [clientes,       setClientes]       = useState([]);
-  const [barbeiros,      setBarbeiros]      = useState([]);
-  const [form,           setForm]           = useState(FORM_INICIAL);
-  const [busca,          setBusca]          = useState('');
-  const [unidade,        setUnidade]        = useState('');
-  const [filtroBarbeiro, setFiltroBarbeiro] = useState('');
-  const [abaAtiva,       setAbaAtiva]       = useState('lista');
-  const [loading,        setLoading]        = useState(false);
-  const [enviando,       setEnviando]       = useState(false);
-  const [sucesso,        setSucesso]        = useState(null);
-  const [erro,           setErro]           = useState(null);
+  const { isAdmin } = useAuth();
+
+  const [clientes,          setClientes]          = useState([]);
+  const [barbeiros,         setBarbeiros]         = useState([]);
+  const [form,              setForm]              = useState(FORM_INICIAL);
+  const [busca,             setBusca]             = useState('');
+  const [unidade,           setUnidade]           = useState('');
+  const [filtroBarbeiro,    setFiltroBarbeiro]    = useState('');
+  const [abaAtiva,          setAbaAtiva]          = useState('lista');
+  const [loading,           setLoading]           = useState(false);
+  const [enviando,          setEnviando]          = useState(false);
+  const [sucesso,           setSucesso]           = useState(null);
+  const [erro,              setErro]              = useState(null);
+  const [clienteParaExcluir, setClienteParaExcluir] = useState(null);
+  const [excluindo,          setExcluindo]          = useState(false);
+  const [erroExclusao,       setErroExclusao]       = useState(null);
 
   useEffect(() => {
     api.profissionais().then(setBarbeiros).catch(() => {});
@@ -106,6 +181,20 @@ export default function Clientes() {
       setErro(err.message);
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function excluirCliente(id, observacao) {
+    setExcluindo(true);
+    setErroExclusao(null);
+    try {
+      await api.deletarCliente(id, observacao);
+      setClientes(cs => cs.filter(c => c.id !== id));
+      setClienteParaExcluir(null);
+    } catch (err) {
+      setErroExclusao(err.message);
+    } finally {
+      setExcluindo(false);
     }
   }
 
@@ -248,7 +337,7 @@ export default function Clientes() {
             <div className="space-y-2">
               {clientes.map((c) => (
                 <div key={c.id} className="card-premium p-4 flex items-center justify-between gap-3">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-gold-light">{c.nome}</p>
                       <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${badgeClasse(c.tipo)}`}>
@@ -262,15 +351,35 @@ export default function Clientes() {
                       Responsável: {c.barbeiro_responsavel_nome ?? '—'}
                     </p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-gold-muted">{c.total_visitas} visita(s)</p>
-                    {c.ultima_visita && <p className="text-[11px] text-gold-muted/60">última: {c.ultima_visita}</p>}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="text-xs text-gold-muted">{c.total_visitas} visita(s)</p>
+                      {c.ultima_visita && <p className="text-[11px] text-gold-muted/60">última: {c.ultima_visita}</p>}
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setClienteParaExcluir(c); setErroExclusao(null); }}
+                        className="p-1.5 text-gold-muted hover:text-red-400 transition-colors"
+                        title="Excluir cliente"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </>
+      )}
+      {clienteParaExcluir && (
+        <ModalExcluir
+          cliente={clienteParaExcluir}
+          onConfirmar={excluirCliente}
+          onFechar={() => { setClienteParaExcluir(null); setErroExclusao(null); }}
+          excluindo={excluindo}
+          erro={erroExclusao}
+        />
       )}
     </main>
   );

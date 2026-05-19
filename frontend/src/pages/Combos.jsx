@@ -165,7 +165,7 @@ export default function Combos() {
   async function carregar() {
     setLoading(true);
     try {
-      const rows = await api.combos({ apenas_vencidos: apenasVenc ? 'true' : undefined });
+      const rows = await api.combos(apenasVenc ? { apenas_vencidos: 'true' } : {});
       setCombos(rows);
     } catch { /* silencioso */ }
     finally { setLoading(false); }
